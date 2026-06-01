@@ -1,8 +1,8 @@
 export function PatientListShimmer() {
   return (
-    <div className="bg-app-surface">
+    <div className="bg-surface">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3.5 px-5 py-4 border-b border-app-divider">
+        <div key={i} className="flex items-center gap-3.5 px-5 py-4 border-b border-divider">
           <div className="shimmer w-11 h-11 rounded-full flex-shrink-0" />
           <div className="flex-1">
             <div className="shimmer h-4 w-40 rounded mb-2" />

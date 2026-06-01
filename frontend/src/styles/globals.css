@@ -14,7 +14,7 @@ body {
   padding: 0;
   margin: 0;
   font-family: 'Inter', sans-serif;
-  background-color: #F5F7FA;
+  background-color: #FFFFFF;
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
 }
@@ -60,7 +60,7 @@ body {
 }
 
 .shimmer {
-  background: linear-gradient(90deg, #E2E8F0 25%, #F8FAFC 50%, #E2E8F0 75%);
+  background: linear-gradient(90deg, #F4F3F0 25%, #FAFAF8 50%, #F4F3F0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }

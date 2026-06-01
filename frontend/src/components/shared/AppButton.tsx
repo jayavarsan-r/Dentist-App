@@ -24,8 +24,8 @@ export default function AppButton({
   const base = 'press-effect inline-flex items-center justify-center font-semibold rounded-md transition-colors focus:outline-none select-none';
 
   const variants = {
-    primary: 'bg-primary text-white shadow-primary-sm hover:bg-primary-dark disabled:opacity-50',
-    secondary: 'bg-primary-surface text-primary border-[1.5px] border-primary hover:bg-primary-subtle disabled:opacity-50',
+    primary: 'bg-accent text-white shadow-primary-sm hover:bg-accent-dark disabled:opacity-50',
+    secondary: 'bg-accent-light text-accent border-[1.5px] border-accent hover:bg-accent-subtle disabled:opacity-50',
     ghost: `bg-transparent font-semibold hover:opacity-80 disabled:opacity-40`,
     danger: 'bg-error-light text-error border-[1.5px] border-error hover:opacity-90 disabled:opacity-50',
   };
@@ -36,7 +36,7 @@ export default function AppButton({
     sm: 'h-[36px] px-4 text-sm',
   };
 
-  const ghostColor = color ? `text-[${color}]` : 'text-primary';
+  const ghostColor = color ? `text-[${color}]` : 'text-accent';
 
   return (
     <button

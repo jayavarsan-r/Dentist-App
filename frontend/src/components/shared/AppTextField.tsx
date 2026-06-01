@@ -71,9 +71,10 @@ interface SearchFieldProps {
   hint?: string;
   value: string;
   onChange: (val: string) => void;
+  autoFocus?: boolean;
 }
 
-export function SearchField({ hint = 'Search...', value, onChange }: SearchFieldProps) {
+export function SearchField({ hint = 'Search...', value, onChange, autoFocus }: SearchFieldProps) {
   return (
     <div className="relative flex items-center">
       <Search className="absolute left-4 w-5 h-5 text-text-secondary" />
@@ -82,7 +83,8 @@ export function SearchField({ hint = 'Search...', value, onChange }: SearchField
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={hint}
-        className="w-full h-12 bg-app-surface-variant border-none rounded-full pl-11 pr-10 text-base text-text-primary placeholder:text-text-disabled focus:ring-[1.5px] focus:ring-primary transition-all"
+        autoFocus={autoFocus}
+        className="w-full h-12 bg-surface-subtle border-none rounded-full pl-11 pr-10 text-base text-text-primary placeholder:text-text-disabled focus:ring-[1.5px] focus:ring-accent transition-all"
       />
       {value && (
         <button

@@ -19,7 +19,7 @@ export default function PatientAvatar({ name, size = 'md', light = false, classN
     <div className={cn(
       'rounded-full flex items-center justify-center font-semibold flex-shrink-0',
       sizes[size],
-      light ? 'bg-white/10 text-white' : 'bg-primary-surface text-primary',
+      light ? 'bg-white/10 text-white' : 'bg-accent-light text-accent',
       className
     )}>
       {getInitials(name)}

@@ -5,14 +5,14 @@ type Status = VisitStatus | AppointmentStatus | 'today' | 'overdue' | 'upcoming'
 
 const configs: Record<string, { bg: string; text: string; label: string }> = {
   completed: { bg: 'bg-success-light', text: 'text-success', label: 'Completed' },
-  scheduled: { bg: 'bg-warning-light', text: 'text-warning', label: 'Upcoming' },
-  upcoming: { bg: 'bg-warning-light', text: 'text-warning', label: 'Upcoming' },
+  scheduled: { bg: 'bg-amber-light', text: 'text-amber', label: 'Upcoming' },
+  upcoming: { bg: 'bg-amber-light', text: 'text-amber', label: 'Upcoming' },
   in_progress: { bg: 'bg-info-light', text: 'text-info', label: 'In Progress' },
-  pending: { bg: 'bg-warning-light', text: 'text-warning', label: 'Pending' },
+  pending: { bg: 'bg-amber-light', text: 'text-amber', label: 'Pending' },
   missed: { bg: 'bg-error-light', text: 'text-error', label: 'Missed' },
-  cancelled: { bg: 'bg-app-surface-variant', text: 'text-text-secondary', label: 'Cancelled' },
+  cancelled: { bg: 'bg-surface-muted', text: 'text-text-secondary', label: 'Cancelled' },
   rescheduled: { bg: 'bg-info-light', text: 'text-info', label: 'Rescheduled' },
-  today: { bg: 'bg-primary-surface', text: 'text-primary', label: 'Today' },
+  today: { bg: 'bg-accent-light', text: 'text-accent', label: 'Today' },
   overdue: { bg: 'bg-error-light', text: 'text-error', label: 'Overdue' },
 };
 

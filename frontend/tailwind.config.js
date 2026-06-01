@@ -4,47 +4,65 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: {
-          DEFAULT: '#1B70F8',
-          dark: '#1355C4',
-          light: '#4D8EFF',
-          surface: '#EBF3FF',
-          subtle: '#F0F7FF',
+        // ── BACKGROUNDS ──
+        bg: '#FFFFFF',
+        surface: '#FFFFFF',
+        'surface-subtle': '#FAFAF8',
+        'surface-muted': '#F4F3F0',
+
+        // ── ACCENT — Sage Green (primary brand) ──
+        accent: {
+          DEFAULT: '#5F7A61',
+          dark: '#49614B',
+          light: '#EDF4EE',
+          subtle: '#F4F8F4',
         },
-        success: {
-          DEFAULT: '#16A34A',
-          light: '#DCFCE7',
-          border: '#86EFAC',
-        },
-        warning: {
+
+        // ── HIGHLIGHT — Amber (pending / upcoming / attention) ──
+        amber: {
           DEFAULT: '#D97706',
+          dark: '#B45309',
           light: '#FEF3C7',
-          border: '#FBBF24',
+          border: '#FDE68A',
         },
-        error: {
-          DEFAULT: '#DC2626',
-          light: '#FEE2E2',
-          border: '#FCA5A5',
+
+        // ── SEMANTIC ──
+        success: { DEFAULT: '#16A34A', light: '#DCFCE7', border: '#86EFAC' },
+        warning: { DEFAULT: '#CA8A04', light: '#FEF9C3', border: '#FDE047' },
+        error: { DEFAULT: '#DC2626', light: '#FEE2E2', border: '#FCA5A5' },
+        info: { DEFAULT: '#0891B2', light: '#E0F2FE', border: '#67E8F9' },
+
+        // ── TEXT ──
+        text: {
+          primary: '#1C1917',
+          secondary: '#78716C',
+          disabled: '#A8A29E',
+          inverse: '#FFFFFF',
+          link: '#5F7A61',
         },
-        info: {
-          DEFAULT: '#0891B2',
-          light: '#E0F2FE',
-          border: '#67E8F9',
+
+        // ── BORDERS ──
+        border: '#E7E5E4',
+        divider: '#F5F5F4',
+
+        // ── BACKWARD-COMPAT ALIASES ──
+        // Legacy tokens used by zero-touch pages (login, settings, voice, etc.).
+        // Remapped onto the warm palette so those screens re-theme automatically
+        // without being modified, per the spec's "no zero-touch file changes" rule.
+        primary: {
+          DEFAULT: '#5F7A61',
+          dark: '#49614B',
+          light: '#7A957C',
+          surface: '#EDF4EE',
+          subtle: '#F4F8F4',
         },
         app: {
-          bg: '#F5F7FA',
+          bg: '#FFFFFF',
           surface: '#FFFFFF',
-          'surface-variant': '#F8FAFC',
-          border: '#E2E8F0',
-          divider: '#F1F5F9',
+          'surface-variant': '#FAFAF8',
+          border: '#E7E5E4',
+          divider: '#F5F5F4',
           'dark-bg': '#0A0E1A',
-        },
-        text: {
-          primary: '#0F172A',
-          secondary: '#64748B',
-          disabled: '#94A3B8',
-          inverse: '#FFFFFF',
-          link: '#1B70F8',
         },
         recording: '#EF4444',
       },
@@ -71,8 +89,8 @@ module.exports = {
       boxShadow: {
         'card': '0 2px 8px rgba(0,0,0,0.04)',
         'elevated': '0 4px 20px rgba(0,0,0,0.07)',
-        'primary': '0 6px 16px rgba(27,112,248,0.25)',
-        'primary-sm': '0 3px 8px rgba(27,112,248,0.19)',
+        'primary': '0 6px 16px rgba(95,122,97,0.25)',
+        'primary-sm': '0 3px 8px rgba(95,122,97,0.19)',
         'nav': '0 -2px 16px rgba(0,0,0,0.08)',
       },
     },

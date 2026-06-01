@@ -17,11 +17,20 @@ export interface Patient {
   gender: 'male' | 'female' | 'other' | null;
   medical_conditions: string | null;
   allergies: string | null;
+  clinical_flags?: ClinicalFlags | null;
   is_deleted: boolean;
   created_at: string;
   updated_at: string;
   visits?: Visit[];
   appointments?: Appointment[];
+}
+
+export interface ClinicalFlags {
+  bloodThinner?: boolean;
+  diabetes?: boolean;
+  heartCondition?: boolean;
+  pregnancy?: boolean;
+  notes?: string;
 }
 
 export type VisitStatus = 'completed' | 'in_progress' | 'pending' | 'cancelled';
