@@ -177,6 +177,51 @@ export default function HomePage() {
             })}
           </>
         )}
+
+        {/* Recent Appointments */}
+        {(stats?.recentAppointments?.length ?? 0) > 0 && (
+          <>
+            <div className="flex items-center justify-between mt-6 mb-3">
+              <h2 className="text-base font-semibold text-text-primary">Recent Appointments</h2>
+              <button onClick={() => router.push('/appointments/')} className="text-sm font-semibold text-primary">
+                See All →
+              </button>
+            </div>
+            <div className="bg-app-surface rounded-md border border-app-border shadow-card overflow-hidden">
+              {stats!.recentAppointments!.map((appt, i) => {
+                const patientName = appt.patients?.name || 'Patient';
+                return (
+                  <div key={appt.id}>
+                    {i > 0 && <div className="h-px bg-app-divider mx-4" />}
+                    <button
+                      onClick={() => router.push(`/patients/${appt.patient_id}/`)}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-left press-effect"
+                    >
+                      <PatientAvatar name={patientName} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-text-primary truncate">{patientName}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                          <p className="text-xs text-text-secondary">
+                            {new Date(appt.appointment_date + 'T00:00:00').toLocaleDateString('en-IN', {
+                              day: 'numeric', month: 'short'
+                            })}
+                            {appt.appointment_time && ` · ${formatTime12(appt.appointment_time)}`}
+                          </p>
+                          {appt.tooth_number && (
+                            <span className="text-[10px] font-semibold bg-primary-surface text-primary px-1.5 py-0.5 rounded-full">
+                              Tooth {appt.tooth_number}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <StatusBadge status={appt.status} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* FAB */}

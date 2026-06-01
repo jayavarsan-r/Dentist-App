@@ -14,7 +14,7 @@ exports.list = async (req, res, next) => {
 
 exports.create = async (req, res, next) => {
   try {
-    const { patientId, procedureName, toothNumber, status, rawTranscript, notes, medications, nextSteps, followUpDate, visitDate } = req.body;
+    const { patientId, procedureName, toothNumber, status, rawTranscript, notes, medications, nextSteps, followUpDate, visitDate, cost, currency } = req.body;
     const { data: visit, error } = await supabase.from('visits').insert({
       patient_id: patientId,
       dentist_id: req.dentistId,
@@ -27,6 +27,8 @@ exports.create = async (req, res, next) => {
       next_steps: nextSteps,
       follow_up_date: followUpDate,
       visit_date: visitDate || new Date().toISOString().split('T')[0],
+      cost: cost != null ? parseFloat(cost) : null,
+      currency: currency || 'INR',
     }).select().single();
     if (error) throw error;
     res.status(201).json({ visit });

@@ -23,6 +23,8 @@ export default function CaseNotePage() {
   const [followUpTime, setFollowUpTime] = useState('10:00');
   const [showTranscript, setShowTranscript] = useState(false);
   const [error, setError] = useState('');
+  const [cost, setCost] = useState<string>('');
+  const [aiDetectedCost, setAiDetectedCost] = useState<number | null>(null);
 
   useEffect(() => {
     if (!rawTranscript) return;
@@ -32,6 +34,10 @@ export default function CaseNotePage() {
       if (s.followUpDate) {
         setScheduleFollowUp(true);
         setFollowUpDate(s.followUpDate);
+      }
+      if (s.cost != null && s.cost > 0) {
+        setAiDetectedCost(s.cost);
+        setCost(String(s.cost));
       }
     }).catch((e) => setError(e.message)).finally(() => setLoading(false));
   }, [rawTranscript]);
@@ -52,6 +58,8 @@ export default function CaseNotePage() {
         medications: note.medications,
         nextSteps: note.nextSteps,
         followUpDate: scheduleFollowUp ? followUpDate : null,
+        cost: cost ? parseFloat(cost) : null,
+        currency: note.currency || 'INR',
       });
 
       if (scheduleFollowUp && followUpDate && followUpTime) {
@@ -131,6 +139,33 @@ export default function CaseNotePage() {
               <NoteField label="Notes" value={note.notes} onChange={(v) => setField('notes', v)} multiline />
               <NoteField label="Medications" value={note.medications || ''} onChange={(v) => setField('medications', v)} placeholder="None" />
               <NoteField label="Next Steps" value={note.nextSteps || ''} onChange={(v) => setField('nextSteps', v)} placeholder="None" />
+
+              {/* Cost field */}
+              <div className="mb-4">
+                <p className="text-[11px] font-medium text-text-secondary tracking-widest uppercase mb-1.5">Cost</p>
+                {aiDetectedCost != null && String(aiDetectedCost) !== cost && (
+                  <button
+                    onClick={() => setCost(String(aiDetectedCost))}
+                    className="mb-2 flex items-center gap-1.5 px-2.5 py-1 bg-primary-surface border border-primary/30 rounded-full"
+                  >
+                    <Sparkles className="w-3 h-3 text-primary" />
+                    <span className="text-xs text-primary font-medium">AI detected: ₹{aiDetectedCost.toLocaleString('en-IN')} — Use this</span>
+                  </button>
+                )}
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-medium text-text-secondary">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={cost}
+                    onChange={(e) => setCost(e.target.value)}
+                    placeholder="0.00"
+                    className="flex-1 text-base text-text-primary bg-transparent focus:outline-none placeholder:text-text-disabled"
+                  />
+                </div>
+                <div className="h-px bg-app-divider mt-3" />
+              </div>
             </div>
           </div>
         )}

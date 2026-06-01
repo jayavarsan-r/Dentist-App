@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/router';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 import AppButton from '@/components/shared/AppButton';
 import PatientAvatar from '@/components/shared/PatientAvatar';
-import { appointmentsApi } from '@/lib/api';
+import ToothChart from '@/components/shared/ToothChart';
+import { appointmentsApi, patientsApi } from '@/lib/api';
 import { formatTime, TIME_SLOTS } from '@/lib/constants';
+import type { ToothHistoryResponse } from '@/types';
 
 function toISODateLocal(date: Date) {
   const y = date.getFullYear();
@@ -30,6 +32,8 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [selectedTooth, setSelectedTooth] = useState<string>('');
+  const [showToothChart, setShowToothChart] = useState(false);
 
   // If editing, load existing appointment data
   useEffect(() => {
@@ -40,11 +44,18 @@ export default function SchedulePage() {
           setSelectedDate(appt.appointment_date);
           setSelectedTime(appt.appointment_time.slice(0, 5)); // "HH:MM"
           setPurpose(appt.purpose || '');
+          setSelectedTooth(appt.tooth_number || '');
           setDataLoaded(true);
         }
       }).catch(() => setDataLoaded(true));
     }
   }, [isEdit, appointmentId, dataLoaded]);
+
+  const { data: toothHistoryData } = useQuery<ToothHistoryResponse>({
+    queryKey: ['toothHistory', patientId],
+    queryFn: () => patientsApi.toothHistory(patientId).then((r) => r.data),
+    enabled: !!patientId && showToothChart,
+  });
 
   const { data: slotsData } = useQuery<{ bookedSlots: string[] }>({
     queryKey: ['bookedSlots', selectedDate],
@@ -62,6 +73,7 @@ export default function SchedulePage() {
           appointment_date: selectedDate,
           appointment_time: selectedTime + ':00',
           purpose: purpose || null,
+          tooth_number: selectedTooth || null,
         });
       } else {
         await appointmentsApi.create({
@@ -69,6 +81,7 @@ export default function SchedulePage() {
           appointmentDate: selectedDate,
           appointmentTime: selectedTime + ':00',
           purpose: purpose || null,
+          toothNumber: selectedTooth || null,
         });
       }
       qc.invalidateQueries({ queryKey: ['appointments'] });
@@ -188,6 +201,57 @@ export default function SchedulePage() {
             placeholder="e.g. Follow-up root canal, Scaling, Crown fitting"
             className="w-full bg-app-surface border-[1.5px] border-app-border rounded-md px-4 py-3 text-base text-text-primary placeholder:text-text-disabled focus:border-primary focus:bg-primary-subtle transition-colors resize-none"
           />
+        </div>
+
+        {/* Tooth selection */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-medium text-text-secondary tracking-widest uppercase">Tooth (Optional)</p>
+            {selectedTooth && (
+              <button
+                onClick={() => setSelectedTooth('')}
+                className="flex items-center gap-1 text-xs text-error"
+              >
+                <X className="w-3 h-3" /> Clear
+              </button>
+            )}
+          </div>
+
+          {/* Selected tooth chip */}
+          {selectedTooth && (
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 bg-primary-surface border border-primary/30 rounded-full px-3 py-1.5">
+                <span className="text-sm font-semibold text-primary">Tooth {selectedTooth}</span>
+                <button onClick={() => setSelectedTooth('')}>
+                  <X className="w-3.5 h-3.5 text-primary/60" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Toggle chart button */}
+          <button
+            onClick={() => setShowToothChart((s) => !s)}
+            className="text-sm font-medium text-primary underline"
+          >
+            {showToothChart ? 'Hide tooth chart' : 'Select from tooth chart'}
+          </button>
+
+          {/* Compact tooth chart */}
+          {showToothChart && (
+            <div className="mt-3 bg-app-surface border border-app-border rounded-xl p-4">
+              <p className="text-xs text-text-secondary mb-3 text-center">Tap a tooth to select</p>
+              <ToothChart
+                toothData={toothHistoryData?.toothMap ?? []}
+                onToothClick={(tn) => {
+                  setSelectedTooth(tn);
+                  setShowToothChart(false);
+                }}
+                highlightedTooth={selectedTooth}
+                compact
+              />
+            </div>
+          )}
         </div>
 
         {error && <p className="text-sm text-error">{error}</p>}

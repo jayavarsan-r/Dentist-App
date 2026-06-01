@@ -5,7 +5,7 @@ const supabase = require('../config/supabase');
 router.get('/dashboard', auth, async (req, res, next) => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const [{ data: appts }, { data: visits }, { data: followups }] = await Promise.all([
+    const [{ data: appts }, { data: visits }, { data: followups }, { data: recentAppts }] = await Promise.all([
       supabase.from('appointments').select('status')
         .eq('dentist_id', req.dentistId).eq('appointment_date', today),
       supabase.from('visits').select('id')
@@ -15,6 +15,11 @@ router.get('/dashboard', auth, async (req, res, next) => {
         .lte('follow_up_date', today)
         .eq('follow_up_done', false)
         .not('follow_up_date', 'is', null),
+      supabase.from('appointments').select('*, patients(id, name, phone)')
+        .eq('dentist_id', req.dentistId)
+        .order('appointment_date', { ascending: false })
+        .order('appointment_time', { ascending: false })
+        .limit(5),
     ]);
 
     res.json({
@@ -23,6 +28,7 @@ router.get('/dashboard', auth, async (req, res, next) => {
       completedToday: visits?.length || 0,
       pendingFollowUps: followups?.length || 0,
       followups: followups || [],
+      recentAppointments: recentAppts || [],
     });
   } catch (e) { next(e); }
 });

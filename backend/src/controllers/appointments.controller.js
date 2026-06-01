@@ -51,13 +51,14 @@ exports.bookedSlots = async (req, res, next) => {
 
 exports.create = async (req, res, next) => {
   try {
-    const { patientId, appointmentDate, appointmentTime, purpose } = req.body;
+    const { patientId, appointmentDate, appointmentTime, purpose, toothNumber } = req.body;
     const { data: appointment, error } = await supabase.from('appointments').insert({
       patient_id: patientId,
       dentist_id: req.dentistId,
       appointment_date: appointmentDate,
       appointment_time: appointmentTime,
       purpose,
+      tooth_number: toothNumber || null,
     }).select().single();
     if (error) throw error;
     res.status(201).json({ appointment });

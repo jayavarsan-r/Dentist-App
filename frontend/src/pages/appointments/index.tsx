@@ -128,7 +128,14 @@ function ApptCard({ appt, router, tab, onUpdate }: {
         <div className="w-px h-10 bg-app-border flex-shrink-0" />
         <div className="flex-1 min-w-0 ml-1">
           <p className="text-sm font-semibold text-text-primary truncate">{appt.patients?.name}</p>
-          <p className="text-xs text-text-secondary truncate">{appt.purpose || 'Dental consultation'}</p>
+          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+            <p className="text-xs text-text-secondary truncate">{appt.purpose || 'Dental consultation'}</p>
+            {appt.tooth_number && (
+              <span className="text-[10px] font-semibold bg-primary-surface text-primary px-1.5 py-0.5 rounded-full flex-shrink-0">
+                Tooth {appt.tooth_number}
+              </span>
+            )}
+          </div>
         </div>
         <StatusBadge status={appt.status} />
       </button>

@@ -41,6 +41,8 @@ export interface Visit {
   follow_up_date: string | null;
   follow_up_done: boolean;
   created_at: string;
+  cost?: number | null;
+  currency?: string;
 }
 
 export type AppointmentStatus = 'scheduled' | 'completed' | 'missed' | 'cancelled' | 'rescheduled';
@@ -56,6 +58,7 @@ export interface Appointment {
   notes: string | null;
   created_at: string;
   patients?: Pick<Patient, 'id' | 'name' | 'phone'>;
+  tooth_number?: string | null;
 }
 
 export interface DashboardStats {
@@ -64,6 +67,7 @@ export interface DashboardStats {
   completedToday: number;
   pendingFollowUps: number;
   followups: (Visit & { patients: Pick<Patient, 'id' | 'name' | 'phone'> })[];
+  recentAppointments?: (Appointment & { patients: Pick<Patient, 'id' | 'name' | 'phone'> })[];
 }
 
 export interface StructuredNote {
@@ -75,4 +79,40 @@ export interface StructuredNote {
   nextSteps: string | null;
   followUpDays: number | null;
   followUpDate: string | null;
+  cost?: number | null;
+  currency?: string;
+}
+
+export interface ToothProcedure {
+  visitId: string;
+  date: string;
+  procedure: string;
+  status: string;
+  notes: string | null;
+  cost: number | null;
+  followUpDate: string | null;
+}
+
+export interface ToothAppointment {
+  appointmentId: string;
+  date: string;
+  time: string | null;
+  purpose: string | null;
+  status: string;
+}
+
+export interface ToothData {
+  toothNumber: string;
+  completedProcedures: ToothProcedure[];
+  upcomingAppointments: ToothAppointment[];
+  totalCost: number;
+  lastProcedureDate: string | null;
+  overallStatus: 'treated' | 'pending' | 'treated_pending';
+}
+
+export interface ToothHistoryResponse {
+  patientId: string;
+  toothMap: ToothData[];
+  generalVisits: any[];
+  totalBilled: number;
 }

@@ -43,6 +43,7 @@ export const patientsApi = {
   getById: (id: string) => api.get(`/patients/${id}`),
   update: (id: string, data: object) => api.put(`/patients/${id}`, data),
   remove: (id: string) => api.delete(`/patients/${id}`),
+  toothHistory: (id: string) => api.get(`/patients/${id}/tooth-history`),
 };
 
 // Visits
