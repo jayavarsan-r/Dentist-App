@@ -1,11 +1,11 @@
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/router';
 import {
   UserCheck, Clock, CreditCard, ChevronRight, Bell,
-  CheckCircle, FileText, CalendarPlus, AlertCircle
+  CheckCircle, FileText, CalendarPlus, X
 } from 'lucide-react';
 import { queueApi, appointmentsApi } from '@/lib/api';
-import { useAuthStore } from '@/store/authStore';
 import { formatTime12 } from '@/lib/utils';
 import StatusBadge from '@/components/shared/StatusBadge';
 import EmptyState from '@/components/shared/EmptyState';
@@ -29,15 +29,17 @@ function TokenBubble({ n, priority }: { n: number; priority: string }) {
   );
 }
 
-function ActionTaskCard({ entry, onOpen }: { entry: QueueEntry & { amount_due?: number; prescription_ready?: boolean; needs_appointment?: boolean }; onOpen: () => void }) {
+type ActionTask = QueueEntry & { amount_due: number; prescription_ready: boolean; needs_appointment: boolean };
+
+function ActionTaskCard({ entry, onOpen }: { entry: ActionTask; onOpen: () => void }) {
   const patientName = entry.patients?.name || '—';
   const doctorName = entry.assigned_doctor_staff?.name;
   const outcomeLabel = entry.consultation_outcome ? OUTCOME_LABELS[entry.consultation_outcome] || entry.consultation_outcome : 'Ready';
   const amountDue = entry.amount_due ?? (entry.treatment_plans ? Number(entry.treatment_plans.pending_amount) : 0);
 
   return (
-    <div className="bg-surface rounded-2xl overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)', borderLeft: '3px solid #007AFF' }}>
-      {/* Card header */}
+    <div className="bg-surface rounded-2xl overflow-hidden"
+      style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)', borderLeft: '3px solid #007AFF' }}>
       <div className="px-4 pt-3.5 pb-2 flex items-start justify-between gap-2">
         <div className="flex items-center gap-2.5 flex-1 min-w-0">
           <TokenBubble n={entry.token_number} priority={entry.priority} />
@@ -56,28 +58,18 @@ function ActionTaskCard({ entry, onOpen }: { entry: QueueEntry & { amount_due?: 
         )}
       </div>
 
-      {/* Required actions */}
       <div className="px-4 py-2 flex flex-wrap gap-2" style={{ borderTop: '1px solid rgba(60,60,67,0.06)' }}>
-        {amountDue > 0 && (
-          <ActionChip icon={<CreditCard className="w-3 h-3" />} label="Collect Payment" />
-        )}
-        {entry.prescription_ready && (
-          <ActionChip icon={<FileText className="w-3 h-3" />} label="Print Prescription" />
-        )}
-        {entry.needs_appointment && (
-          <ActionChip icon={<CalendarPlus className="w-3 h-3" />} label="Schedule Appointment" />
-        )}
+        {amountDue > 0 && <ActionChip icon={<CreditCard className="w-3 h-3" />} label="Collect Payment" />}
+        {entry.prescription_ready && <ActionChip icon={<FileText className="w-3 h-3" />} label="Print Prescription" />}
+        {entry.needs_appointment && <ActionChip icon={<CalendarPlus className="w-3 h-3" />} label="Schedule Appointment" />}
         {!amountDue && !entry.prescription_ready && !entry.needs_appointment && (
           <ActionChip icon={<CheckCircle className="w-3 h-3" />} label="Complete Checkout" />
         )}
       </div>
 
-      {/* Open button */}
-      <button
-        onClick={onOpen}
+      <button onClick={onOpen}
         className="w-full flex items-center justify-between px-4 py-3 press-effect"
-        style={{ background: '#007AFF', borderTop: '1px solid rgba(60,60,67,0.06)' }}
-      >
+        style={{ background: '#007AFF', borderTop: '1px solid rgba(60,60,67,0.06)' }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Open Checkout</span>
         <ChevronRight className="w-4 h-4 text-white" />
       </button>
@@ -97,15 +89,18 @@ function ActionChip({ icon, label }: { icon: React.ReactNode; label: string }) {
 export default function ReceptionPage() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { dentist, clinic } = useAuthStore();
 
-  const { data: queueData, refetch } = useQuery<{ queue: QueueEntry[] }>({
+  // Notification state for new checkout patients
+  const [notificationEntry, setNotificationEntry] = useState<ActionTask | null>(null);
+  const prevCountRef = useRef<number>(-1); // -1 = not yet initialized
+
+  const { data: queueData } = useQuery<{ queue: QueueEntry[] }>({
     queryKey: ['queue'],
     queryFn: () => queueApi.list().then(r => r.data),
     refetchInterval: 20000,
   });
 
-  const { data: actionData } = useQuery<{ tasks: (QueueEntry & { amount_due: number; prescription_ready: boolean; needs_appointment: boolean })[] }>({
+  const { data: actionData } = useQuery<{ tasks: ActionTask[] }>({
     queryKey: ['action-queue'],
     queryFn: () => queueApi.actionQueue().then(r => r.data),
     refetchInterval: 15000,
@@ -116,13 +111,28 @@ export default function ReceptionPage() {
     queryFn: () => appointmentsApi.today().then(r => r.data),
   });
 
-  const queue = queueData?.queue || [];
   const actionTasks = actionData?.tasks || [];
-  const waiting = queue.filter(e => e.status === 'waiting');
-  const inConsult = queue.filter(e => e.status === 'in_consultation');
-  const done = queue.filter(e => e.status === 'completed' || e.status === 'checked_out');
-  const today = new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 
+  // Show notification when a new patient appears in the action queue
+  useEffect(() => {
+    if (prevCountRef.current === -1) {
+      // First load — just record the baseline, no notification
+      prevCountRef.current = actionTasks.length;
+      return;
+    }
+    if (actionTasks.length > prevCountRef.current) {
+      // New patient ready for checkout
+      const newest = actionTasks[actionTasks.length - 1];
+      setNotificationEntry(newest);
+    }
+    prevCountRef.current = actionTasks.length;
+  }, [actionTasks]);
+
+  const queue = queueData?.queue || [];
+  const waiting  = queue.filter(e => e.status === 'waiting');
+  const inConsult = queue.filter(e => e.status === 'in_consultation');
+  const done     = queue.filter(e => e.status === 'completed' || e.status === 'checked_out');
+  const today = new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
   const activeQueueEntries = queue.filter(e => e.status !== 'ready_for_checkout' && e.status !== 'checked_out');
 
   return (
@@ -137,24 +147,21 @@ export default function ReceptionPage() {
           <button
             onClick={() => router.push('/check-in/')}
             className="flex items-center gap-2 h-10 px-4 rounded-xl text-white text-sm font-semibold press-effect"
-            style={{ background: '#1C1C1E' }}
-          >
+            style={{ background: '#1C1C1E' }}>
             <UserCheck className="w-4 h-4" /> Check-in
           </button>
         </div>
-
-        {/* Stat row */}
         <div className="flex gap-5 mt-4">
-          <Stat label="Waiting"       value={waiting.length}  color="#C77700" />
-          <Stat label="In consult"    value={inConsult.length} color="#1B86B8" />
-          <Stat label="Done"          value={done.length}     color="#1E8E3E" />
-          <Stat label="Appointments"  value={todayData?.appointments.length ?? 0} color="#1C1C1E" />
+          <Stat label="Waiting"      value={waiting.length}                     color="#C77700" />
+          <Stat label="In consult"   value={inConsult.length}                   color="#1B86B8" />
+          <Stat label="Done"         value={done.length}                        color="#1E8E3E" />
+          <Stat label="Appointments" value={todayData?.appointments.length ?? 0} color="#1C1C1E" />
         </div>
       </div>
 
       <div className="px-5 pt-5 space-y-6">
 
-        {/* ── ACTION QUEUE (Ready for Checkout) ── */}
+        {/* ── ACTION QUEUE ── */}
         {actionTasks.length > 0 && (
           <section>
             <div className="flex items-center justify-between mb-3">
@@ -170,11 +177,7 @@ export default function ReceptionPage() {
             </div>
             <div className="space-y-3">
               {actionTasks.map(task => (
-                <ActionTaskCard
-                  key={task.id}
-                  entry={task}
-                  onOpen={() => router.push(`/checkout/${task.id}/`)}
-                />
+                <ActionTaskCard key={task.id} entry={task} onOpen={() => router.push(`/checkout/${task.id}/`)} />
               ))}
             </div>
           </section>
@@ -186,7 +189,9 @@ export default function ReceptionPage() {
             <p style={{ fontSize: 11, fontWeight: 600, color: '#6E6E73', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Today&apos;s Queue · {activeQueueEntries.length}
             </p>
-            <button onClick={() => router.push('/queue/')} style={{ color: '#007AFF', fontSize: 14, fontWeight: 500 }}>View all</button>
+            <button onClick={() => router.push('/queue/')} style={{ color: '#007AFF', fontSize: 14, fontWeight: 500 }}>
+              View all
+            </button>
           </div>
           {activeQueueEntries.length === 0 ? (
             <div className="bg-surface rounded-2xl" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.05)' }}>
@@ -195,17 +200,16 @@ export default function ReceptionPage() {
           ) : (
             <div className="bg-surface rounded-2xl overflow-hidden" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.05)' }}>
               {activeQueueEntries.slice(0, 6).map((entry, i) => (
-                <button
-                  key={entry.id}
-                  onClick={() => router.push(`/patients/${entry.patient_id}/`)}
+                <button key={entry.id} onClick={() => router.push(`/patients/${entry.patient_id}/`)}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left"
-                  style={{ borderTop: i > 0 ? '1px solid rgba(60,60,67,0.08)' : 'none' }}
-                >
+                  style={{ borderTop: i > 0 ? '1px solid rgba(60,60,67,0.08)' : 'none' }}>
                   <TokenBubble n={entry.token_number} priority={entry.priority} />
                   <div className="flex-1 min-w-0">
                     <p style={{ fontSize: 15, fontWeight: 600, color: '#1C1C1E' }}>{entry.patients?.name || '—'}</p>
                     {entry.chief_complaint && (
-                      <p style={{ fontSize: 13, color: '#6E6E73', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.chief_complaint}</p>
+                      <p style={{ fontSize: 13, color: '#6E6E73', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {entry.chief_complaint}
+                      </p>
                     )}
                     {entry.treatment_plans && (
                       <p style={{ fontSize: 12, color: '#1B86B8', fontWeight: 500 }}>
@@ -228,12 +232,9 @@ export default function ReceptionPage() {
             </p>
             <div className="bg-surface rounded-2xl overflow-hidden" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.05)' }}>
               {todayData!.appointments.slice(0, 5).map((appt, i) => (
-                <button
-                  key={appt.id}
-                  onClick={() => router.push(`/patients/${appt.patient_id}/`)}
+                <button key={appt.id} onClick={() => router.push(`/patients/${appt.patient_id}/`)}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left"
-                  style={{ borderTop: i > 0 ? '1px solid rgba(60,60,67,0.08)' : 'none' }}
-                >
+                  style={{ borderTop: i > 0 ? '1px solid rgba(60,60,67,0.08)' : 'none' }}>
                   <div className="w-10 text-center flex-shrink-0">
                     <p style={{ fontSize: 13, fontWeight: 600, color: '#1C1C1E' }}>{formatTime12(appt.appointment_time)}</p>
                   </div>
@@ -248,6 +249,86 @@ export default function ReceptionPage() {
           </section>
         )}
       </div>
+
+      {/* ── NOTIFICATION DIALOG ── */}
+      {notificationEntry && (
+        <div className="fixed inset-0 bg-black/50 flex items-end z-50 px-0">
+          <div className="bg-surface rounded-t-2xl w-full max-w-lg mx-auto pb-8"
+            style={{ boxShadow: '0 -8px 32px rgba(0,0,0,0.18)' }}>
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(60,60,67,0.18)' }} />
+            </div>
+
+            <div className="px-5 pt-3 pb-5">
+              {/* Icon + title */}
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(0,122,255,0.1)' }}>
+                  <Bell className="w-6 h-6" style={{ color: '#007AFF' }} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 17, fontWeight: 700, color: '#1C1C1E' }}>Patient is ready</p>
+                  <p style={{ fontSize: 14, color: '#6E6E73', marginTop: 2 }}>
+                    {notificationEntry.patients?.name || 'Patient'} has been seen by{' '}
+                    {notificationEntry.assigned_doctor_staff?.name
+                      ? `Dr. ${notificationEntry.assigned_doctor_staff.name}`
+                      : 'the doctor'}.
+                  </p>
+                </div>
+                <button onClick={() => setNotificationEntry(null)} className="ml-auto p-1 flex-shrink-0">
+                  <X className="w-5 h-5 text-text-secondary" />
+                </button>
+              </div>
+
+              {/* Summary chips */}
+              <div className="flex flex-wrap gap-2 mb-5">
+                {notificationEntry.amount_due > 0 && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: '#FFF1F0' }}>
+                    <CreditCard className="w-3.5 h-3.5" style={{ color: '#FF3B30' }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#FF3B30' }}>
+                      ₹{Number(notificationEntry.amount_due).toLocaleString('en-IN')} due
+                    </span>
+                  </div>
+                )}
+                {notificationEntry.prescription_ready && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: '#F0F4FF' }}>
+                    <FileText className="w-3.5 h-3.5" style={{ color: '#007AFF' }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#007AFF' }}>Prescription ready</span>
+                  </div>
+                )}
+                {notificationEntry.needs_appointment && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: '#F0FFF4' }}>
+                    <CalendarPlus className="w-3.5 h-3.5" style={{ color: '#1E8E3E' }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#1E8E3E' }}>Appointment needed</span>
+                  </div>
+                )}
+                {notificationEntry.consultation_outcome && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: '#F2F2F7' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#6E6E73' }}>
+                      {OUTCOME_LABELS[notificationEntry.consultation_outcome] || notificationEntry.consultation_outcome}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <button
+                onClick={() => { setNotificationEntry(null); router.push(`/checkout/${notificationEntry.id}/`); }}
+                className="w-full h-12 rounded-2xl flex items-center justify-center gap-2 text-white font-semibold mb-2.5 press-effect"
+                style={{ background: '#007AFF', fontSize: 15 }}>
+                Open Checkout
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button onClick={() => setNotificationEntry(null)}
+                className="w-full h-11 rounded-2xl flex items-center justify-center font-semibold press-effect"
+                style={{ background: '#F2F2F7', color: '#6E6E73', fontSize: 14 }}>
+                Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
