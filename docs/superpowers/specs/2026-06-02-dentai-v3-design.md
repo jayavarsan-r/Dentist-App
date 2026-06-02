@@ -42,36 +42,71 @@ CREATE TABLE clinics (
 );
 
 -- Staff (replaces dentists table conceptually — dentists migrate here)
+-- Amendment 1: staff.status added (pending/active/disabled) for future approval flow.
+-- MVP keeps current immediate-join flow but status column enables approval gate later.
 CREATE TABLE staff (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   clinic_id   UUID REFERENCES clinics(id) ON DELETE CASCADE NOT NULL,
   phone       TEXT NOT NULL,
   name        TEXT,
   role        TEXT NOT NULL CHECK (role IN ('doctor', 'receptionist')),
-  is_active   BOOLEAN DEFAULT TRUE,
+  status      TEXT DEFAULT 'active' CHECK (status IN ('pending', 'active', 'disabled')),
+  -- 'pending' = requested access, awaiting owner approval (not used in MVP but schema supports it)
+  -- 'active'  = can login and use app
+  -- 'disabled' = access revoked
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(clinic_id, phone)
 );
 
 -- Queue entries (per-day patient flow)
+-- Amendments 2 + 3: treatment_plan_id + consultation_outcome added
 CREATE TABLE queue_entries (
-  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  clinic_id        UUID REFERENCES clinics(id) ON DELETE CASCADE NOT NULL,
-  patient_id       UUID REFERENCES patients(id) ON DELETE CASCADE NOT NULL,
-  added_by         UUID REFERENCES staff(id),
-  assigned_doctor  UUID REFERENCES staff(id),
-  status           TEXT DEFAULT 'waiting'
-                   CHECK (status IN ('waiting', 'in_consultation', 'completed', 'skipped')),
-  chief_complaint  TEXT,
-  visit_reason     TEXT,
-  priority         TEXT DEFAULT 'normal' CHECK (priority IN ('normal', 'urgent')),
-  queue_date       DATE DEFAULT CURRENT_DATE,
-  token_number     INTEGER,             -- auto-increment within date
-  notes            TEXT,
-  created_at       TIMESTAMPTZ DEFAULT NOW(),
-  updated_at       TIMESTAMPTZ DEFAULT NOW()
+  id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  clinic_id            UUID REFERENCES clinics(id) ON DELETE CASCADE NOT NULL,
+  patient_id           UUID REFERENCES patients(id) ON DELETE CASCADE NOT NULL,
+  treatment_plan_id    UUID REFERENCES treatment_plans(id),
+  -- Amendment 2: links queue entry to a specific treatment plan so doctor knows
+  -- which sitting this is (e.g. "RCT Tooth 26 — Sitting 3/4"), not just patient name
+  added_by             UUID REFERENCES staff(id),
+  assigned_doctor      UUID REFERENCES staff(id),
+  status               TEXT DEFAULT 'waiting'
+                       CHECK (status IN ('waiting', 'in_consultation', 'completed', 'skipped')),
+  consultation_outcome TEXT DEFAULT NULL
+                       CHECK (consultation_outcome IN (
+                         'diagnosis_only', 'treatment_done', 'treatment_postponed',
+                         'patient_declined', 'referred', 'follow_up_scheduled', NULL
+                       )),
+  -- Amendment 3: outcome recorded when consultation completes
+  chief_complaint      TEXT,
+  visit_reason         TEXT,
+  priority             TEXT DEFAULT 'normal' CHECK (priority IN ('normal', 'urgent')),
+  queue_date           DATE DEFAULT CURRENT_DATE,
+  token_number         INTEGER,
+  notes                TEXT,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+-- Amendment 5: Payments with individual transactions (not just collected_amount sum)
+-- This replaces/augments treatment_plans.collected_amount for audit trail purposes.
+-- treatment_plans.collected_amount stays as a computed/cached total for display speed.
+CREATE TABLE payments (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  clinic_id         UUID REFERENCES clinics(id) ON DELETE CASCADE NOT NULL,
+  patient_id        UUID REFERENCES patients(id) ON DELETE CASCADE NOT NULL,
+  treatment_plan_id UUID REFERENCES treatment_plans(id),
+  queue_entry_id    UUID REFERENCES queue_entries(id),
+  received_by       UUID REFERENCES staff(id),          -- receptionist who collected
+  amount            NUMERIC(10,2) NOT NULL,
+  payment_method    TEXT DEFAULT 'cash'
+                    CHECK (payment_method IN ('cash', 'card', 'upi', 'other')),
+  notes             TEXT,
+  payment_date      DATE DEFAULT CURRENT_DATE,
+  created_at        TIMESTAMPTZ DEFAULT NOW()
+  -- Each row = one payment event. History: "10 Jun ₹2000, 17 Jun ₹1500" etc.
+  -- treatment_plans.collected_amount is updated to SUM(payments.amount) on each insert.
+);
 
 ### 3B. Add clinic_id to Existing Tables
 
@@ -163,18 +198,26 @@ GET  /auth/me             (extend to return staff + clinic)
 
 ```
 # Queue
-GET  /api/queue                  ← today's queue for clinic
-POST /api/queue                  ← add patient to queue
-PATCH /api/queue/:id             ← update status
-DELETE /api/queue/:id            ← remove from queue
+GET    /api/queue                  ← today's queue for clinic (with patient + plan info)
+POST   /api/queue                  ← add patient to queue
+PATCH  /api/queue/:id              ← update status / outcome / assigned doctor
+DELETE /api/queue/:id              ← remove from queue
+GET    /api/queue/:id/context      ← consultation context (Amendment 4)
+                                      returns: queueEntry + patient + activePlans
+                                              + lastVisit + todayXrays + pendingBalance
 
 # Staff
-GET  /api/staff                  ← all staff in clinic
-GET  /api/staff/me               ← current staff member
+GET    /api/staff                  ← all active staff in clinic
+GET    /api/staff/me               ← current staff member
 
 # Clinics
-GET  /api/clinic                 ← current clinic info
-PATCH /api/clinic                ← update clinic info
+GET    /api/clinic                 ← current clinic info (name, join_code, display_id)
+PATCH  /api/clinic                 ← update clinic info (name, city)
+
+# Payments (Amendment 5)
+POST   /api/payments               ← record a payment transaction
+GET    /api/patients/:id/payments  ← payment history for patient (all transactions)
+GET    /api/treatment-plans/:id/payments ← payments for a specific treatment plan
 ```
 
 ---
@@ -243,7 +286,40 @@ Step 4: Select assigned doctor (if clinic has multiple doctors).
 Step 5: Set priority (normal/urgent).  
 Step 6: Confirm → adds to queue → shows token number.
 
-### 8E. `/queue/` — Queue management (both roles, different actions)
+### 8E. `/consult/[queueEntryId]` — Consultation Context Screen (Amendment 4)
+
+**This is the most used screen in the app.** Doctor taps a patient in the queue → lands here before opening full patient profile.
+
+Single screen, no tab jumping. Shows everything needed for one consultation:
+
+**Section 1 — Patient header**
+- Name, age, gender, phone
+- Outstanding balance chip (red, shows if > 0)
+- Last visit date
+
+**Section 2 — Today's reason**
+- Chief complaint (from queue entry, voice-recorded by receptionist)
+- If `treatment_plan_id` set: shows "Sitting 3/4 — RCT Tooth 26" with progress bar
+- Priority badge (urgent / normal)
+- Today's X-rays (thumbnails if uploaded today)
+
+**Section 3 — Clinical context**
+- Active treatment plans (compact: procedure, progress, assigned doctor)
+- Last visit note (most recent visit.notes, date, procedure)
+- Medical flags (allergies, clinical flags — prominent if exist)
+
+**Section 4 — Actions**
+- [Start Consultation] → opens full patient profile `/patients/[id]` in doctor mode
+- [Record Voice Note] → goes to `/voice/record` with patientId
+- [Mark Complete] → opens outcome picker, then marks queue entry done
+
+This screen is read-only except for the action buttons. All editing happens in the patient profile.
+
+**Route:** `/consult/[queueEntryId]` — fetches queue entry + patient + latest visit + treatment plans in one API call.
+
+**API:** `GET /api/queue/:id/context` — returns `{ queueEntry, patient, activePlans, lastVisit, todayXrays, pendingBalance }`
+
+### 8F. `/queue/` — Queue management (both roles, different actions)
 
 Full-screen queue view:
 - **Receptionist view**: Can reorder, mark skipped, add notes, see all statuses.
@@ -379,6 +455,18 @@ interface AuthState {
 
 ---
 
+## 15A. Amendment Summary
+
+| # | Change | Impact |
+|---|---|---|
+| 1 | `staff.status` (pending/active/disabled) | Schema only in MVP; auth middleware checks `status = active` |
+| 2 | `queue_entries.treatment_plan_id` | Queue shows "Sitting 3/4 — RCT" not just patient name |
+| 3 | `queue_entries.consultation_outcome` | Doctor records outcome when marking complete |
+| 4 | `/consult/[queueEntryId]` screen | Single-screen context: complaint + X-rays + plan + balance |
+| 5 | `payments` table with transactions | Full payment history per patient/plan; `collected_amount` stays as cached total |
+
+---
+
 ## 15. Implementation Order
 
 **Phase 1 — Foundation (must ship before anything else)**
@@ -401,8 +489,11 @@ interface AuthState {
 13. Check-in page (`/check-in/`)
 14. Patient profile: add-to-queue / start-consultation buttons
 
-**Phase 4 — Polish**
-15. Settings: clinic info, join code, staff list
-16. Multi-doctor AI extraction
-17. Doctor selector in appointment scheduling
-18. Outstanding balance chip on patient profile
+**Phase 4 — Payments + Polish**
+15. `payments` table + `POST /api/payments` route
+16. Payment collection UI (receptionist: record payment, choose method, see transaction history)
+17. Consultation context screen `/consult/[queueEntryId]`
+18. Settings: clinic info, join code, staff list
+19. Multi-doctor AI extraction (assigned doctor field in AI prompt)
+20. Doctor selector in appointment scheduling
+21. Outstanding balance chip on patient profile
