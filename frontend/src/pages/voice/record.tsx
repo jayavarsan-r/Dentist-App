@@ -39,7 +39,7 @@ function formatTranscript(raw: string): string {
 
 export default function VoiceRecordPage() {
   const router = useRouter();
-  const { patientId, patientName } = router.query as { patientId: string; patientName: string };
+  const { patientId, patientName, visitId } = router.query as { patientId: string; patientName: string; visitId?: string };
 
   const [state, setState] = useState<RecordState>('idle');
   const [seconds, setSeconds] = useState(0);
@@ -97,10 +97,15 @@ export default function VoiceRecordPage() {
 
       try {
         const res = await aiApi.transcribe(blob, ext);
-        const { transcript: raw, warning } = res.data;
+        const { transcript: raw, warning, audioStoragePath, audioFileSizeKb } = res.data;
         const formatted = formatTranscript(raw || '');
         setTranscript(formatted);
         if (warning) setTranscriptWarning(warning);
+        // Store audio metadata for note page
+        if (audioStoragePath) {
+          (window as any).__audioStoragePath = audioStoragePath;
+          (window as any).__audioFileSizeKb = audioFileSizeKb;
+        }
         setState('review');
       } catch (e: any) {
         setError(e.message || 'Transcription failed. Please try again.');
@@ -114,10 +119,15 @@ export default function VoiceRecordPage() {
 
   const handleGenerate = () => {
     if (!transcript.trim()) return;
-    router.push({
-      pathname: '/voice/note/',
-      query: { patientId, patientName, transcript },
-    });
+    const query: Record<string, string> = { patientId, patientName, transcript };
+    if ((window as any).__audioStoragePath) {
+      query.audioStoragePath = (window as any).__audioStoragePath;
+      query.audioFileSizeKb = String((window as any).__audioFileSizeKb || '');
+      delete (window as any).__audioStoragePath;
+      delete (window as any).__audioFileSizeKb;
+    }
+    if (visitId) query.visitId = visitId;
+    router.push({ pathname: '/voice/note/', query });
   };
 
   const pad = (n: number) => n.toString().padStart(2, '0');

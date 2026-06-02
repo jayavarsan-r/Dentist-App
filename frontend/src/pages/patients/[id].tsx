@@ -4,18 +4,19 @@ import { useRouter } from 'next/router';
 import {
   ArrowLeft, Mic, Calendar, Phone, AlertTriangle,
   FileText, Pill, ChevronRight, CheckCircle2, Clock, Sparkles,
-  Map, Edit2, Activity, Heart, Droplet, Baby, Syringe, Check, X
+  Map, Edit2, Activity, Heart, Droplet, Baby, Syringe, Check, X,
+  ClipboardList, Image as ImageIcon
 } from 'lucide-react';
-import { patientsApi, appointmentsApi } from '@/lib/api';
+import { patientsApi, appointmentsApi, treatmentPlansApi, prescriptionsApi, xraysApi } from '@/lib/api';
 import StatusBadge from '@/components/shared/StatusBadge';
 import EmptyState from '@/components/shared/EmptyState';
 import { ProfileShimmer } from '@/components/shared/LoadingShimmer';
 import ToothChart from '@/components/shared/ToothChart';
 import ToothDetailSheet from '@/components/shared/ToothDetailSheet';
 import { formatDate, formatTime12 } from '@/lib/utils';
-import type { Patient, Visit, Appointment, ToothHistoryResponse, ToothData, ClinicalFlags } from '@/types';
+import type { Patient, Visit, Appointment, ToothHistoryResponse, ToothData, ClinicalFlags, TreatmentPlan, Prescription, XRay } from '@/types';
 
-const TABS = ['Overview', 'History', 'Complications', 'Teeth'] as const;
+const TABS = ['Overview', 'History', 'Health', 'Teeth', 'Plans', 'Rx', 'X-Rays'] as const;
 type Tab = typeof TABS[number];
 
 const todayStr = () => new Date().toISOString().split('T')[0];
@@ -61,6 +62,26 @@ export default function PatientProfilePage() {
     queryFn: () => patientsApi.toothHistory(id).then((r) => r.data),
     enabled: !!id && activeTab === 'Teeth',
   });
+
+  const { data: plansData } = useQuery<{ plans: TreatmentPlan[] }>({
+    queryKey: ['treatment-plans', id],
+    queryFn: () => treatmentPlansApi.listForPatient(id).then(r => r.data),
+    enabled: !!id && (activeTab === 'Overview' || activeTab === 'Plans'),
+  });
+
+  const { data: rxData } = useQuery<{ prescriptions: Prescription[] }>({
+    queryKey: ['prescriptions', id],
+    queryFn: () => prescriptionsApi.listForPatient(id).then(r => r.data),
+    enabled: !!id && activeTab === 'Rx',
+  });
+
+  const { data: xraysData } = useQuery<{ xrays: XRay[] }>({
+    queryKey: ['xrays', id],
+    queryFn: () => xraysApi.listForPatient(id).then(r => r.data),
+    enabled: !!id && activeTab === 'X-Rays',
+  });
+
+  const activePlans = (plansData?.plans || []).filter(p => p.status === 'active');
 
   const patient = data?.patient;
   const visits = (patient?.visits ?? []).sort((a, b) => b.visit_date.localeCompare(a.visit_date));
@@ -132,13 +153,13 @@ export default function PatientProfilePage() {
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="flex mt-3 -mb-3">
+        {/* Tabs — horizontally scrollable */}
+        <div className="flex mt-3 -mb-3 overflow-x-auto scrollbar-none">
           {TABS.map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${
+              className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
                 activeTab === tab
                   ? 'border-accent text-accent'
                   : 'border-transparent text-text-secondary'
@@ -153,6 +174,41 @@ export default function PatientProfilePage() {
       {/* ── OVERVIEW ── */}
       {activeTab === 'Overview' && (
         <div className="px-5 py-4 space-y-6">
+          {/* Active Treatment Plan Card */}
+          {activePlans.length > 0 && (
+            <button
+              onClick={() => router.push(`/treatment-plan/${activePlans[0].id}?patientId=${id}`)}
+              className="w-full text-left bg-surface border-[1.5px] border-accent/40 rounded-xl p-4 shadow-card"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Current Treatment</p>
+                <StatusBadge status={activePlans[0].status as any} />
+              </div>
+              <p className="text-base font-bold text-accent">{activePlans[0].procedure_name}</p>
+              {activePlans[0].diagnosis && <p className="text-xs text-text-secondary mt-0.5">{activePlans[0].diagnosis}</p>}
+              <div className="flex items-center justify-between mt-2.5 mb-1">
+                <p className="text-xs font-medium text-text-primary">
+                  {activePlans[0].completed_sittings}/{activePlans[0].total_sittings} sittings
+                </p>
+                <p className="text-xs font-medium text-accent">
+                  {Math.round((activePlans[0].completed_sittings / (activePlans[0].total_sittings || 1)) * 100)}% done
+                </p>
+              </div>
+              <div className="h-1.5 bg-accent-light rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-accent rounded-full"
+                  style={{ width: `${(activePlans[0].completed_sittings / (activePlans[0].total_sittings || 1)) * 100}%` }}
+                />
+              </div>
+              {activePlans[0].pending_amount > 0 && (
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs text-text-secondary">Pending amount</p>
+                  <p className="text-xs font-bold text-error">₹{Number(activePlans[0].pending_amount).toLocaleString('en-IN')}</p>
+                </div>
+              )}
+            </button>
+          )}
+
           <AiSummaryCard
             lastVisit={lastVisit}
             nextAppt={nextAppt}
@@ -166,6 +222,10 @@ export default function PatientProfilePage() {
               onClick={() => router.push(`/voice/record/?patientId=${id}&patientName=${encodeURIComponent(patient.name)}`)} />
             <ActionChip icon={<Calendar className="w-5 h-5" />} label="Schedule"
               onClick={() => router.push(`/appointments/schedule/?patientId=${id}&patientName=${encodeURIComponent(patient.name)}`)} />
+            <ActionChip icon={<ClipboardList className="w-5 h-5" />} label="Case Sheet"
+              onClick={() => router.push(`/case-sheet/${id}`)} />
+            <ActionChip icon={<Pill className="w-5 h-5" />} label="Prescription"
+              onClick={() => router.push(`/prescription/new?patientId=${id}&patientName=${encodeURIComponent(patient.name)}`)} />
             <ActionChip icon={<Map className="w-5 h-5" />} label="Teeth"
               onClick={() => setActiveTab('Teeth')} />
           </div>
@@ -230,6 +290,9 @@ export default function PatientProfilePage() {
                     onEdit={() => router.push(
                       `/appointments/schedule/?appointmentId=${appt.id}&patientId=${id}&patientName=${encodeURIComponent(patient.name)}`
                     )}
+                    onRecord={() => router.push(
+                      `/voice/record/?patientId=${id}&patientName=${encodeURIComponent(patient.name)}`
+                    )}
                   />
                 ))}
               </div>
@@ -240,35 +303,79 @@ export default function PatientProfilePage() {
 
       {/* ── HISTORY ── */}
       {activeTab === 'History' && (
-        <div className="px-5 py-4 space-y-2.5">
+        <div className="px-5 py-4 space-y-3">
           {appointments.length === 0 ? (
             <EmptyState icon={Calendar} title="No appointments" subtitle="Scheduled and past appointments appear here" />
           ) : (
             appointments.map((appt) => {
               const visitOnDate = visits.find((v) => v.visit_date === appt.appointment_date);
               const d = new Date(appt.appointment_date + 'T00:00:00');
+              const isPast = appt.appointment_date < todayStr();
               return (
-                <div key={appt.id} className="bg-surface rounded-xl border border-border shadow-sm px-4 py-3 flex items-center gap-3">
-                  <div className="w-12 flex-shrink-0 text-center">
-                    <p className="text-[10px] font-medium uppercase text-text-secondary">
-                      {d.toLocaleDateString('en', { month: 'short' })}
-                    </p>
-                    <p className="text-lg font-bold text-text-primary leading-none">{d.getDate()}</p>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text-primary truncate">
-                      {appt.purpose || visitOnDate?.procedure_name || 'Appointment'}
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="text-xs text-text-secondary">{formatTime12(appt.appointment_time)}</span>
-                      {visitOnDate?.cost != null && visitOnDate.cost > 0 && (
-                        <span className="text-xs font-semibold text-success">
-                          ₹{parseFloat(String(visitOnDate.cost)).toLocaleString('en-IN')}
-                        </span>
+                <div key={appt.id} className="bg-surface rounded-xl border border-border shadow-sm overflow-hidden">
+                  {/* Main row */}
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <div className={`w-12 h-14 rounded-lg flex flex-col items-center justify-center flex-shrink-0 ${
+                      appt.status === 'completed' ? 'bg-success-light' : appt.status === 'scheduled' ? 'bg-accent-light' : 'bg-surface-muted'
+                    }`}>
+                      <span className={`text-[10px] font-medium uppercase ${
+                        appt.status === 'completed' ? 'text-success' : appt.status === 'scheduled' ? 'text-accent' : 'text-text-secondary'
+                      }`}>{d.toLocaleDateString('en', { month: 'short' })}</span>
+                      <span className={`text-lg font-bold leading-none ${
+                        appt.status === 'completed' ? 'text-success' : appt.status === 'scheduled' ? 'text-accent' : 'text-text-secondary'
+                      }`}>{d.getDate()}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-text-primary truncate">
+                        {appt.purpose || visitOnDate?.procedure_name || 'Appointment'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-xs text-text-secondary">{formatTime12(appt.appointment_time)}</span>
+                        {visitOnDate?.cost != null && visitOnDate.cost > 0 && (
+                          <span className="text-xs font-bold text-success">
+                            ₹{parseFloat(String(visitOnDate.cost)).toLocaleString('en-IN')}
+                          </span>
+                        )}
+                        {visitOnDate?.tooth_number && (
+                          <span className="text-[10px] bg-accent-light text-accent px-1.5 py-0.5 rounded font-medium">
+                            Tooth {visitOnDate.tooth_number}
+                          </span>
+                        )}
+                      </div>
+                      {visitOnDate?.notes && (
+                        <p className="text-xs text-text-secondary mt-1 line-clamp-2">{visitOnDate.notes}</p>
+                      )}
+                      {visitOnDate?.medications && (
+                        <p className="text-xs text-info mt-0.5 flex items-center gap-1">
+                          <Pill className="w-3 h-3" />{visitOnDate.medications}
+                        </p>
                       )}
                     </div>
+                    <StatusBadge status={appt.status} />
                   </div>
-                  <StatusBadge status={appt.status} />
+                  {/* Action bar */}
+                  <div className="border-t border-divider flex divide-x divide-divider">
+                    <button
+                      onClick={() => router.push(`/voice/record/?patientId=${id}&patientName=${encodeURIComponent(patient.name)}`)}
+                      className="flex-1 py-2.5 text-xs font-semibold text-accent flex items-center justify-center gap-1.5 bg-accent-light/30"
+                    >
+                      <Mic className="w-3.5 h-3.5" /> Add Note
+                    </button>
+                    <button
+                      onClick={() => router.push(`/appointments/schedule/?appointmentId=${appt.id}&patientId=${id}&patientName=${encodeURIComponent(patient.name)}`)}
+                      className="flex-1 py-2.5 text-xs font-semibold text-text-secondary flex items-center justify-center gap-1.5"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" /> Edit
+                    </button>
+                    {appt.status === 'scheduled' && (
+                      <button
+                        onClick={() => markAppointmentDone(appt.id)}
+                        className="flex-1 py-2.5 text-xs font-semibold text-success flex items-center justify-center gap-1.5"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Done
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })
@@ -276,9 +383,126 @@ export default function PatientProfilePage() {
         </div>
       )}
 
-      {/* ── COMPLICATIONS ── */}
-      {activeTab === 'Complications' && (
+      {/* ── HEALTH (was Complications) ── */}
+      {activeTab === 'Health' && (
         <ComplicationsTab patient={patient} onSaved={() => { qc.invalidateQueries({ queryKey: ['patient', id] }); refetch(); }} />
+      )}
+
+      {/* ── PLANS ── */}
+      {activeTab === 'Plans' && (
+        <div className="px-5 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[10px] font-semibold text-text-secondary tracking-widest uppercase">Treatment Plans</p>
+            <button
+              onClick={() => router.push(`/case-sheet/${id}`)}
+              className="text-xs font-semibold text-accent"
+            >View Full Case Sheet →</button>
+          </div>
+          {(plansData?.plans || []).length === 0 ? (
+            <EmptyState icon={ClipboardList} title="No treatment plans" subtitle="Treatment plans are created when you record multi-sitting procedures" />
+          ) : (
+            <div className="space-y-3">
+              {(plansData?.plans || []).map(plan => (
+                <button
+                  key={plan.id}
+                  onClick={() => router.push(`/treatment-plan/${plan.id}?patientId=${id}`)}
+                  className="w-full text-left bg-surface border border-border rounded-xl p-4 shadow-card"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-semibold text-text-primary">{plan.procedure_name}</p>
+                    <StatusBadge status={plan.status as any} />
+                  </div>
+                  {plan.diagnosis && <p className="text-xs text-text-secondary mb-2">{plan.diagnosis}</p>}
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs text-accent">{plan.completed_sittings}/{plan.total_sittings} sittings</p>
+                    <p className="text-xs text-accent">{Math.round((plan.completed_sittings / (plan.total_sittings || 1)) * 100)}%</p>
+                  </div>
+                  <div className="h-1.5 bg-accent-light rounded-full overflow-hidden">
+                    <div className="h-full bg-accent rounded-full" style={{ width: `${(plan.completed_sittings / (plan.total_sittings || 1)) * 100}%` }} />
+                  </div>
+                  <div className="flex justify-between mt-2">
+                    <span className="text-xs text-text-secondary">Pending: <span className="text-error font-medium">₹{Number(plan.pending_amount).toLocaleString('en-IN')}</span></span>
+                    <span className="text-xs text-success font-medium">Collected: ₹{Number(plan.collected_amount).toLocaleString('en-IN')}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── RX ── */}
+      {activeTab === 'Rx' && (
+        <div className="px-5 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[10px] font-semibold text-text-secondary tracking-widest uppercase">Prescriptions</p>
+            <button
+              onClick={() => router.push(`/prescription/new?patientId=${id}&patientName=${encodeURIComponent(patient.name)}`)}
+              className="text-xs font-semibold text-accent"
+            >+ New</button>
+          </div>
+          {(rxData?.prescriptions || []).length === 0 ? (
+            <div>
+              <EmptyState icon={Pill} title="No prescriptions" subtitle="Generate prescriptions from voice recordings" ctaLabel="New Prescription"
+                onCta={() => router.push(`/prescription/new?patientId=${id}&patientName=${encodeURIComponent(patient.name)}`)} />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {(rxData?.prescriptions || []).map(rx => (
+                <button
+                  key={rx.id}
+                  onClick={() => router.push(`/prescription/${rx.id}`)}
+                  className="w-full flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3 shadow-card text-left"
+                >
+                  <div className="w-9 h-9 bg-accent-light rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Pill className="w-4 h-4 text-accent" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-text-primary">{rx.medicines.length} medicine(s)</p>
+                    <p className="text-xs text-text-secondary">{formatDate(rx.created_at)}</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-text-disabled" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── X-RAYS ── */}
+      {activeTab === 'X-Rays' && (
+        <div className="px-5 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[10px] font-semibold text-text-secondary tracking-widest uppercase">X-Rays &amp; Photos</p>
+            <button
+              onClick={() => router.push(`/xrays/${id}?patientName=${encodeURIComponent(patient.name)}`)}
+              className="text-xs font-semibold text-accent"
+            >View All / Upload</button>
+          </div>
+          {(xraysData?.xrays || []).length === 0 ? (
+            <EmptyState icon={ImageIcon} title="No X-rays uploaded" subtitle="Upload OPG, RVG, CBCT or treatment photos" ctaLabel="Upload X-Ray"
+              onCta={() => router.push(`/xrays/${id}?patientName=${encodeURIComponent(patient.name)}`)} />
+          ) : (
+            <div className="grid grid-cols-2 gap-2.5">
+              {(xraysData?.xrays || []).slice(0, 6).map(xray => (
+                <button
+                  key={xray.id}
+                  onClick={() => router.push(`/xrays/${id}?patientName=${encodeURIComponent(patient.name)}`)}
+                  className="bg-surface border border-border rounded-xl overflow-hidden text-left shadow-card"
+                >
+                  <div className="h-20 bg-surface-muted flex items-center justify-center">
+                    <ImageIcon className="w-7 h-7 text-text-disabled" />
+                  </div>
+                  <div className="p-2">
+                    <span className="text-[10px] font-semibold bg-accent-light text-accent px-1.5 py-0.5 rounded-full">{xray.xray_type}</span>
+                    <p className="text-[10px] text-text-secondary mt-1">{formatDate(xray.date_taken)}</p>
+                    {xray.tooth_number && <p className="text-[10px] text-accent font-medium">Tooth {xray.tooth_number}</p>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── TEETH ── */}
@@ -546,8 +770,8 @@ function ActionChip({ icon, label, highlight, onClick }: {
   );
 }
 
-function AppointmentCard({ appt, onMarkDone, onEdit }: {
-  appt: Appointment; onMarkDone: () => void; onEdit: () => void;
+function AppointmentCard({ appt, onMarkDone, onEdit, onRecord }: {
+  appt: Appointment; onMarkDone: () => void; onEdit: () => void; onRecord: () => void;
 }) {
   const today = todayStr();
   const isToday = appt.appointment_date === today;
@@ -582,12 +806,15 @@ function AppointmentCard({ appt, onMarkDone, onEdit }: {
         </div>
       </div>
       <div className="border-t border-divider flex divide-x divide-divider">
-        <button onClick={onEdit} className="flex-1 py-2 text-xs font-semibold text-accent flex items-center justify-center gap-1.5">
+        <button onClick={onRecord} className="flex-1 py-2.5 text-xs font-semibold text-accent flex items-center justify-center gap-1.5 bg-accent-light/40">
+          <Mic className="w-3.5 h-3.5" /> Record Note
+        </button>
+        <button onClick={onEdit} className="flex-1 py-2.5 text-xs font-semibold text-text-secondary flex items-center justify-center gap-1.5">
           <Edit2 className="w-3.5 h-3.5" /> Edit
         </button>
         {appt.status === 'scheduled' && (
-          <button onClick={onMarkDone} className="flex-1 py-2 text-xs font-semibold text-success flex items-center justify-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5" /> Mark Attended
+          <button onClick={onMarkDone} className="flex-1 py-2.5 text-xs font-semibold text-success flex items-center justify-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Done
           </button>
         )}
       </div>

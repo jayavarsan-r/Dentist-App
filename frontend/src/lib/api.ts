@@ -83,3 +83,46 @@ export const aiApi = {
 export const analyticsApi = {
   dashboard: () => api.get('/analytics/dashboard'),
 };
+
+// Treatment Plans
+export const treatmentPlansApi = {
+  create: (data: object) => api.post('/treatment-plans', data),
+  getById: (id: string) => api.get(`/treatment-plans/${id}`),
+  update: (id: string, data: object) => api.patch(`/treatment-plans/${id}`, data),
+  listForPatient: (patientId: string) => api.get(`/patients/${patientId}/treatment-plans`),
+};
+
+// Visit Notes
+export const visitNotesApi = {
+  list: (visitId: string) => api.get(`/visits/${visitId}/notes`),
+  create: (visitId: string, data: object) => api.post(`/visits/${visitId}/notes`, data),
+};
+
+// Prescriptions
+export const prescriptionsApi = {
+  create: (data: object) => api.post('/prescriptions', data),
+  getById: (id: string) => api.get(`/prescriptions/${id}`),
+  listForPatient: (patientId: string) => api.get(`/patients/${patientId}/prescriptions`),
+};
+
+// X-Rays
+export const xraysApi = {
+  listForPatient: (patientId: string) => api.get(`/patients/${patientId}/xrays`),
+  getSignedUrl: (id: string) => api.get(`/xrays/${id}/url`),
+  delete: (id: string) => api.delete(`/xrays/${id}`),
+  upload: (formData: FormData) => api.post('/xrays', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+};
+
+// Case Sheet
+export const caseSheetApi = {
+  get: (patientId: string) => api.get(`/patients/${patientId}/case-sheet`),
+};
+
+// Dataset
+export const datasetApi = {
+  stats: () => api.get('/dataset/stats'),
+  export: (params?: { format?: string; includeUrls?: string; limit?: number }) =>
+    api.get('/dataset/export', { params }),
+};

@@ -14,6 +14,8 @@ const configs: Record<string, { bg: string; text: string; label: string }> = {
   rescheduled: { bg: 'bg-info-light', text: 'text-info', label: 'Rescheduled' },
   today: { bg: 'bg-accent-light', text: 'text-accent', label: 'Today' },
   overdue: { bg: 'bg-error-light', text: 'text-error', label: 'Overdue' },
+  active: { bg: 'bg-accent-light', text: 'text-accent', label: 'Active' },
+  paused: { bg: 'bg-surface-muted', text: 'text-text-secondary', label: 'Paused' },
 };
 
 interface StatusBadgeProps {

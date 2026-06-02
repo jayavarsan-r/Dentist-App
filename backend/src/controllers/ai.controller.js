@@ -3,6 +3,7 @@ const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const storageService = require('../services/storage.service');
 
 // Ensure upload directory exists
 const UPLOAD_DIR = '/tmp/dental-uploads';
@@ -62,8 +63,23 @@ exports.transcribe = async (req, res, next) => {
       timeout: 30000,
     });
 
+    // Upload audio to Supabase Storage for dataset collection (non-fatal)
+    let audioStoragePath = null;
+    let audioFileSizeKb = null;
+    try {
+      const tempId = `tmp_${Date.now()}`;
+      const uploaded = await storageService.uploadFile(
+        req.file.path, 'voice-notes',
+        `${req.dentistId}/${tempId}`
+      );
+      audioStoragePath = uploaded.storagePath;
+      audioFileSizeKb = uploaded.sizeKb;
+    } catch (uploadErr) {
+      console.error('[AI] Audio upload failed (non-fatal):', uploadErr.message);
+    }
+
     try { fs.unlinkSync(req.file.path); } catch {}
-    res.json({ transcript: response.data.transcript });
+    res.json({ transcript: response.data.transcript, audioStoragePath, audioFileSizeKb });
   } catch (e) {
     if (req.file?.path) try { fs.unlinkSync(req.file.path); } catch {}
     const sarvamErr = e.response?.data?.error?.message || e.response?.data?.message || e.message;
@@ -89,7 +105,11 @@ Extract structured information from a dentist's voice note and return ONLY valid
   "followUpDays": "number or null (how many days until follow-up)",
   "followUpDate": "YYYY-MM-DD or null (calculate from today ${today} using followUpDays if mentioned, use the correct year ${new Date().getFullYear()})",
   "cost": "number or null (extract any monetary amount mentioned, e.g. if 'charged 2500 rupees' or 'cost is 1500' then 2500 or 1500. Return as plain number without currency symbol.)",
-  "currency": "string (currency code, default 'INR'. Use 'USD' if dollars mentioned, 'INR' if rupees/Rs mentioned.)"
+  "currency": "string (currency code, default 'INR'. Use 'USD' if dollars mentioned, 'INR' if rupees/Rs mentioned.)",
+  "totalSittings": "number or null — total sittings required if dentist mentions it (e.g. '4 sittings required' means 4)",
+  "remainingSittings": "number or null — remaining sittings after today",
+  "isMultiSitting": "boolean — true if procedure requires multiple visits or dentist mentions sittings",
+  "treatmentPlanSuggested": "boolean — true if the note suggests creating a treatment plan"
 }
 If a follow-up is mentioned (e.g. 'follow up in 7 days', 'next appointment in 2 weeks'), calculate the exact date from today ${today}.
 For FDI tooth numbers: if the dentist says 'tooth 6' or 'upper right 6', map to FDI '16'. If 'lower left molar' or 'tooth 36', use '36'. Always output standard FDI two-digit numbers.
@@ -144,5 +164,9 @@ function mockNote(transcript) {
     followUpDate: null,
     cost: null,
     currency: 'INR',
+    totalSittings: null,
+    remainingSittings: null,
+    isMultiSitting: false,
+    treatmentPlanSuggested: false,
   };
 }

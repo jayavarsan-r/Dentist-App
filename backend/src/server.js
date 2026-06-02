@@ -20,9 +20,19 @@ app.use('/api/visits', require('./routes/visits.routes'));
 app.use('/api/appointments', require('./routes/appointments.routes'));
 app.use('/api/ai', require('./routes/ai.routes'));
 app.use('/api/analytics', require('./routes/analytics.routes'));
+app.use('/api/treatment-plans', require('./routes/treatment-plans.routes'));
+app.use('/api/visits/:visitId/notes', require('./routes/visit-notes.routes'));
+app.use('/api/prescriptions', require('./routes/prescriptions.routes'));
+app.use('/api/xrays', require('./routes/xrays.routes'));
+app.use('/api/dataset', require('./routes/dataset.routes'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 app.use(require('./middleware/errorHandler'));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`DentAI Backend running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`DentAI Backend running on port ${PORT}`);
+  const { runAudioCleanup } = require('./jobs/cleanup.job');
+  setTimeout(() => runAudioCleanup(18).catch(console.error), 30000);
+  setInterval(() => runAudioCleanup(18).catch(console.error), 24 * 60 * 60 * 1000);
+});

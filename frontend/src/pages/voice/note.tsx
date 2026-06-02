@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
-import { X, Sparkles, ChevronDown, ChevronUp, Mic, Calendar } from 'lucide-react';
+import { X, Sparkles, ChevronDown, ChevronUp, Mic, Calendar, GitBranch } from 'lucide-react';
 import AppButton from '@/components/shared/AppButton';
-import { aiApi, visitsApi, appointmentsApi } from '@/lib/api';
+import { aiApi, visitsApi, visitNotesApi, appointmentsApi, treatmentPlansApi } from '@/lib/api';
 import type { StructuredNote } from '@/types';
 
 const STATUS_OPTIONS = ['completed', 'in_progress', 'pending'] as const;
@@ -11,8 +11,9 @@ const STATUS_OPTIONS = ['completed', 'in_progress', 'pending'] as const;
 export default function CaseNotePage() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { patientId, patientName, transcript: rawTranscript } = router.query as {
+  const { patientId, patientName, transcript: rawTranscript, audioStoragePath, audioFileSizeKb, visitId: existingVisitId } = router.query as {
     patientId: string; patientName: string; transcript: string;
+    audioStoragePath?: string; audioFileSizeKb?: string; visitId?: string;
   };
 
   const [note, setNote] = useState<StructuredNote | null>(null);
@@ -25,6 +26,9 @@ export default function CaseNotePage() {
   const [error, setError] = useState('');
   const [cost, setCost] = useState<string>('');
   const [aiDetectedCost, setAiDetectedCost] = useState<number | null>(null);
+  const [createTreatmentPlan, setCreateTreatmentPlan] = useState(false);
+  const [totalSittingsInput, setTotalSittingsInput] = useState('');
+  const [planCostInput, setPlanCostInput] = useState('');
 
   useEffect(() => {
     if (!rawTranscript) return;
@@ -38,7 +42,10 @@ export default function CaseNotePage() {
       if (s.cost != null && s.cost > 0) {
         setAiDetectedCost(s.cost);
         setCost(String(s.cost));
+        setPlanCostInput(String(s.cost));
       }
+      if (s.totalSittings) setTotalSittingsInput(String(s.totalSittings));
+      if (s.isMultiSitting) setCreateTreatmentPlan(true);
     }).catch((e) => setError(e.message)).finally(() => setLoading(false));
   }, [rawTranscript]);
 
@@ -48,19 +55,43 @@ export default function CaseNotePage() {
     if (!note || !patientId) return;
     setSaving(true);
     try {
-      await visitsApi.create({
-        patientId,
-        procedureName: note.procedure,
-        toothNumber: note.toothNumber,
-        status: note.status,
-        rawTranscript,
-        notes: note.notes,
-        medications: note.medications,
-        nextSteps: note.nextSteps,
-        followUpDate: scheduleFollowUp ? followUpDate : null,
-        cost: cost ? parseFloat(cost) : null,
-        currency: note.currency || 'INR',
-      });
+      const audioPath = audioStoragePath || undefined;
+      const audioSizeKb = audioFileSizeKb ? parseInt(audioFileSizeKb) : undefined;
+
+      if (existingVisitId) {
+        // Add note to existing visit (multi-note mode)
+        await visitNotesApi.create(existingVisitId, {
+          patientId,
+          rawTranscript,
+          procedureName: note.procedure,
+          toothNumber: note.toothNumber,
+          status: note.status,
+          notes: note.notes,
+          medications: note.medications,
+          nextSteps: note.nextSteps,
+          followUpDate: scheduleFollowUp ? followUpDate : null,
+          cost: cost ? parseFloat(cost) : null,
+          audioStoragePath: audioPath,
+          audioFileSizeKb: audioSizeKb,
+        });
+      } else {
+        // Create new visit
+        await visitsApi.create({
+          patientId,
+          procedureName: note.procedure,
+          toothNumber: note.toothNumber,
+          status: note.status,
+          rawTranscript,
+          notes: note.notes,
+          medications: note.medications,
+          nextSteps: note.nextSteps,
+          followUpDate: scheduleFollowUp ? followUpDate : null,
+          cost: cost ? parseFloat(cost) : null,
+          currency: note.currency || 'INR',
+          audioStoragePath: audioPath,
+          audioFileSizeKb: audioSizeKb,
+        });
+      }
 
       if (scheduleFollowUp && followUpDate && followUpTime) {
         await appointmentsApi.create({
@@ -69,6 +100,18 @@ export default function CaseNotePage() {
           appointmentTime: followUpTime,
           purpose: `Follow-up: ${note.procedure}`,
         });
+      }
+
+      // Create treatment plan if requested
+      if (createTreatmentPlan && !existingVisitId) {
+        await treatmentPlansApi.create({
+          patientId,
+          procedureName: note.procedure,
+          diagnosis: note.notes || null,
+          totalSittings: parseInt(totalSittingsInput) || note.totalSittings || 1,
+          estimatedCost: parseFloat(planCostInput) || note.cost || 0,
+        });
+        qc.invalidateQueries({ queryKey: ['treatment-plans', patientId] });
       }
 
       qc.invalidateQueries({ queryKey: ['patient', patientId] });
@@ -202,6 +245,48 @@ export default function CaseNotePage() {
                   onChange={(e) => setFollowUpTime(e.target.value)}
                   className="flex-1 h-10 bg-app-surface border border-app-border rounded-md px-3 text-sm focus:outline-none focus:border-warning"
                 />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Multi-Sitting Treatment Plan Suggestion */}
+        {note?.isMultiSitting && !existingVisitId && (
+          <div className="bg-info-light border border-info-border rounded-md p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <GitBranch className="w-4 h-4 text-info flex-shrink-0" />
+              <p className="text-sm font-semibold text-info">Multi-Sitting Treatment Detected</p>
+            </div>
+            <p className="text-sm text-text-primary mb-3">
+              AI detected {note.totalSittings ?? 'multiple'} sittings. Create a treatment plan to track progress?
+            </p>
+            <div className="flex items-center gap-3 mb-3">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" checked={createTreatmentPlan} onChange={e => setCreateTreatmentPlan(e.target.checked)} className="sr-only peer" />
+                <div className="w-10 h-5 bg-app-border peer-focus:ring-2 peer-focus:ring-info rounded-full peer peer-checked:bg-info after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5" />
+              </label>
+              <span className="text-sm font-medium text-text-primary">Create Treatment Plan</span>
+            </div>
+            {createTreatmentPlan && (
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-[10px] font-semibold text-text-secondary uppercase">Total Sittings</label>
+                  <input
+                    type="number" min="1" value={totalSittingsInput}
+                    onChange={e => setTotalSittingsInput(e.target.value)}
+                    placeholder={String(note.totalSittings ?? 4)}
+                    className="w-full h-10 mt-1 bg-app-surface border border-app-border rounded-md px-3 text-sm text-text-primary focus:outline-none focus:border-info"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-[10px] font-semibold text-text-secondary uppercase">Total Cost (₹)</label>
+                  <input
+                    type="number" min="0" value={planCostInput}
+                    onChange={e => setPlanCostInput(e.target.value)}
+                    placeholder={String(note.cost ?? '')}
+                    className="w-full h-10 mt-1 bg-app-surface border border-app-border rounded-md px-3 text-sm text-text-primary focus:outline-none focus:border-info"
+                  />
+                </div>
               </div>
             )}
           </div>

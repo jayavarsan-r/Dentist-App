@@ -90,6 +90,113 @@ export interface StructuredNote {
   followUpDate: string | null;
   cost?: number | null;
   currency?: string;
+  totalSittings?: number | null;
+  remainingSittings?: number | null;
+  isMultiSitting?: boolean;
+  treatmentPlanSuggested?: boolean;
+}
+
+// ─── V4 TYPES ───
+
+export type TreatmentPlanStatus = 'active' | 'completed' | 'cancelled' | 'paused';
+
+export interface TreatmentPlan {
+  id: string;
+  patient_id: string;
+  dentist_id: string;
+  diagnosis: string | null;
+  procedure_name: string;
+  total_sittings: number;
+  completed_sittings: number;
+  estimated_cost: number;
+  collected_amount: number;
+  pending_amount: number;
+  status: TreatmentPlanStatus;
+  notes: string | null;
+  start_date: string | null;
+  expected_end_date: string | null;
+  created_at: string;
+  updated_at: string;
+  visits?: Pick<Visit, 'id' | 'visit_date' | 'status' | 'procedure_name' | 'cost'>[];
+  appointments?: Pick<Appointment, 'id' | 'appointment_date' | 'appointment_time' | 'status' | 'purpose'>[];
+}
+
+export interface VisitNote {
+  id: string;
+  visit_id: string;
+  patient_id: string;
+  dentist_id: string;
+  note_number: number;
+  raw_transcript: string | null;
+  structured_note: any | null;
+  procedure_name: string | null;
+  tooth_number: string | null;
+  status: string;
+  notes: string | null;
+  medications: string | null;
+  next_steps: string | null;
+  follow_up_date: string | null;
+  cost: number | null;
+  audio_storage_path: string | null;
+  audio_file_size_kb: number | null;
+  created_at: string;
+}
+
+export interface PrescriptionMedicine {
+  name: string;
+  dose: string | null;
+  frequency: string | null;
+  duration: string | null;
+  instructions: string | null;
+}
+
+export interface Prescription {
+  id: string;
+  patient_id: string;
+  dentist_id: string;
+  visit_id: string | null;
+  visit_note_id: string | null;
+  raw_voice: string | null;
+  medicines: PrescriptionMedicine[];
+  instructions: string | null;
+  pdf_storage_path: string | null;
+  created_at: string;
+  patients?: { name: string; age: number | null; gender: string | null; phone: string };
+  dentists?: { name: string | null; clinic_name: string | null; phone: string };
+}
+
+export interface XRay {
+  id: string;
+  patient_id: string;
+  dentist_id: string;
+  visit_id: string | null;
+  xray_type: 'OPG' | 'RVG' | 'CBCT' | 'Photo' | 'Other';
+  storage_path: string;
+  file_size_kb: number | null;
+  date_taken: string;
+  tooth_number: string | null;
+  notes: string | null;
+  remarks: string | null;
+  created_at: string;
+}
+
+export interface CaseSheet {
+  patient: Patient;
+  activeTreatmentPlans: TreatmentPlan[];
+  allTreatmentPlans: TreatmentPlan[];
+  visits: (Visit & { visit_notes?: VisitNote[] })[];
+  prescriptions: Prescription[];
+  xrays: XRay[];
+  upcomingAppointments: Appointment[];
+  summary: {
+    totalVisits: number;
+    totalBilled: number;
+    totalPlannedCost: number;
+    totalCollected: number;
+    pendingAmount: number;
+    totalXrays: number;
+    totalPrescriptions: number;
+  };
 }
 
 export interface ToothProcedure {
