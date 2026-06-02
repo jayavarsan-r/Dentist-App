@@ -23,14 +23,16 @@ router.post('/', auth, async (req, res, next) => {
 
     if (error) throw error;
 
-    // Update treatment_plans.collected_amount if linked
+    // Sync collected_amount and pending_amount on treatment plan
     if (treatmentPlanId) {
       const { data: plan } = await supabase.from('treatment_plans')
-        .select('collected_amount').eq('id', treatmentPlanId).single();
+        .select('collected_amount, estimated_cost').eq('id', treatmentPlanId).single();
       if (plan) {
         const newCollected = parseFloat(plan.collected_amount || 0) + parseFloat(amount);
+        const newPending = Math.max(0, parseFloat(plan.estimated_cost || 0) - newCollected);
         await supabase.from('treatment_plans')
-          .update({ collected_amount: newCollected }).eq('id', treatmentPlanId);
+          .update({ collected_amount: newCollected, pending_amount: newPending })
+          .eq('id', treatmentPlanId);
       }
     }
 

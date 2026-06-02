@@ -19,10 +19,66 @@ router.get('/', auth, async (req, res, next) => {
       `)
       .eq('clinic_id', req.clinicId)
       .eq('queue_date', today)
+      .order('sort_order', { ascending: true, nullsFirst: false })
       .order('token_number', { ascending: true });
 
     if (error) throw error;
     res.json({ queue: data || [] });
+  } catch (e) { next(e); }
+});
+
+// GET /api/queue/action-queue — ready_for_checkout entries for receptionist
+router.get('/action-queue', auth, async (req, res, next) => {
+  try {
+    if (!req.clinicId) return res.status(403).json({ error: 'No clinic context' });
+    const today = new Date().toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('queue_entries')
+      .select(`
+        *,
+        patients(id, name, phone, age, gender),
+        treatment_plans(id, procedure_name, total_sittings, completed_sittings, pending_amount, estimated_cost, collected_amount),
+        assigned_doctor_staff:assigned_doctor(id, name, role)
+      `)
+      .eq('clinic_id', req.clinicId)
+      .eq('queue_date', today)
+      .eq('status', 'ready_for_checkout')
+      .order('updated_at', { ascending: true });
+
+    if (error) throw error;
+
+    // Enrich with prescription_ready flag
+    const entries = data || [];
+    const enriched = await Promise.all(entries.map(async (entry) => {
+      const patientId = entry.patient_id;
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+      const { count: rxCount } = await supabase
+        .from('prescriptions')
+        .select('id', { count: 'exact', head: true })
+        .eq('patient_id', patientId)
+        .gte('created_at', oneHourAgo);
+
+      const pendingBalance = entry.treatment_plans
+        ? parseFloat(entry.treatment_plans.pending_amount) || 0
+        : 0;
+
+      const needsAppointment = [
+        'follow_up_scheduled',
+        'additional_sitting_required',
+        'treatment_postponed',
+      ].includes(entry.consultation_outcome);
+
+      return {
+        ...entry,
+        prescription_ready: (rxCount || 0) > 0,
+        amount_due: pendingBalance,
+        needs_appointment: needsAppointment,
+      };
+    }));
+
+    res.json({ tasks: enriched });
   } catch (e) { next(e); }
 });
 
@@ -35,12 +91,13 @@ router.post('/', auth, async (req, res, next) => {
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Get next token number for today
     const { count } = await supabase
       .from('queue_entries')
       .select('id', { count: 'exact', head: true })
       .eq('clinic_id', req.clinicId)
       .eq('queue_date', today);
+
+    const nextToken = (count || 0) + 1;
 
     const { data, error } = await supabase.from('queue_entries').insert({
       clinic_id:         req.clinicId,
@@ -52,7 +109,8 @@ router.post('/', auth, async (req, res, next) => {
       visit_reason:      visitReason || null,
       priority:          priority || 'normal',
       queue_date:        today,
-      token_number:      (count || 0) + 1,
+      token_number:      nextToken,
+      sort_order:        nextToken,
       status:            'waiting',
     }).select(`
       *,
@@ -65,14 +123,17 @@ router.post('/', auth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// PATCH /api/queue/:id — update status, outcome, assigned doctor
+// PATCH /api/queue/:id — update status, outcome, assigned doctor, sort_order
 router.patch('/:id', auth, async (req, res, next) => {
   try {
     const updates = {};
-    if (req.body.status)               updates.status = req.body.status;
-    if (req.body.consultationOutcome)  updates.consultation_outcome = req.body.consultationOutcome;
-    if (req.body.assignedDoctor !== undefined) updates.assigned_doctor = req.body.assignedDoctor;
-    if (req.body.notes)                updates.notes = req.body.notes;
+    if (req.body.status !== undefined)             updates.status = req.body.status;
+    if (req.body.consultationOutcome !== undefined) updates.consultation_outcome = req.body.consultationOutcome;
+    if (req.body.outcomeMetadata !== undefined)     updates.outcome_metadata = req.body.outcomeMetadata;
+    if (req.body.assignedDoctor !== undefined)      updates.assigned_doctor = req.body.assignedDoctor;
+    if (req.body.priority !== undefined)            updates.priority = req.body.priority;
+    if (req.body.sortOrder !== undefined)           updates.sort_order = req.body.sortOrder;
+    if (req.body.notes !== undefined)               updates.notes = req.body.notes;
     updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
@@ -84,6 +145,51 @@ router.patch('/:id', auth, async (req, res, next) => {
 
     if (error) throw error;
     res.json({ entry: data });
+  } catch (e) { next(e); }
+});
+
+// PATCH /api/queue/:id/reorder — move entry up or down in queue
+router.patch('/:id/reorder', auth, async (req, res, next) => {
+  try {
+    if (!req.clinicId) return res.status(403).json({ error: 'No clinic context' });
+    const { direction } = req.body; // 'up' | 'down'
+    if (!['up', 'down'].includes(direction)) return res.status(400).json({ error: 'direction must be up or down' });
+
+    const today = new Date().toISOString().split('T')[0];
+
+    // Get all waiting entries ordered by sort_order
+    const { data: entries, error: listError } = await supabase
+      .from('queue_entries')
+      .select('id, sort_order, token_number')
+      .eq('clinic_id', req.clinicId)
+      .eq('queue_date', today)
+      .eq('status', 'waiting')
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('token_number', { ascending: true });
+
+    if (listError) throw listError;
+
+    const idx = entries.findIndex(e => e.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Entry not found in waiting queue' });
+
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= entries.length) {
+      return res.json({ entry: entries[idx], message: 'Already at boundary' });
+    }
+
+    const current = entries[idx];
+    const swap = entries[swapIdx];
+
+    const currentOrder = current.sort_order ?? current.token_number;
+    const swapOrder = swap.sort_order ?? swap.token_number;
+
+    // Swap sort_order values
+    await Promise.all([
+      supabase.from('queue_entries').update({ sort_order: swapOrder, updated_at: new Date().toISOString() }).eq('id', current.id),
+      supabase.from('queue_entries').update({ sort_order: currentOrder, updated_at: new Date().toISOString() }).eq('id', swap.id),
+    ]);
+
+    res.json({ success: true });
   } catch (e) { next(e); }
 });
 

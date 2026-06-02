@@ -144,6 +144,9 @@ export const queueApi = {
   update: (id: string, data: object) => api.patch(`/queue/${id}`, data),
   remove: (id: string) => api.delete(`/queue/${id}`),
   context: (id: string) => api.get(`/queue/${id}/context`),
+  actionQueue: () => api.get('/queue/action-queue'),
+  reorder: (id: string, direction: 'up' | 'down') =>
+    api.patch(`/queue/${id}/reorder`, { direction }),
 };
 
 // Staff

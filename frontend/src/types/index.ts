@@ -123,8 +123,23 @@ export interface StaffMember {
   created_at: string;
 }
 
-export type QueueStatus = 'waiting' | 'in_consultation' | 'completed' | 'skipped';
-export type ConsultationOutcome = 'diagnosis_only' | 'treatment_done' | 'treatment_postponed' | 'patient_declined' | 'referred' | 'follow_up_scheduled';
+export type QueueStatus = 'waiting' | 'in_consultation' | 'completed' | 'skipped' | 'ready_for_checkout' | 'checked_out';
+export type ConsultationOutcome =
+  | 'diagnosis_only'
+  | 'treatment_done'
+  | 'treatment_postponed'
+  | 'patient_declined'
+  | 'referred'
+  | 'follow_up_scheduled'
+  | 'additional_sitting_required';
+
+export interface OutcomeMetadata {
+  follow_up_days?: number;
+  remaining_sittings?: number;
+  referred_to_doctor_id?: string;
+  referred_to_doctor_name?: string;
+  suggested_return_date?: string;
+}
 
 export interface QueueEntry {
   id: string;
@@ -135,11 +150,13 @@ export interface QueueEntry {
   assigned_doctor: string | null;
   status: QueueStatus;
   consultation_outcome: ConsultationOutcome | null;
+  outcome_metadata: OutcomeMetadata | null;
   chief_complaint: string | null;
   visit_reason: string | null;
   priority: 'normal' | 'urgent';
   queue_date: string;
   token_number: number;
+  sort_order: number | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -147,6 +164,16 @@ export interface QueueEntry {
   treatment_plans?: { id: string; procedure_name: string; total_sittings: number; completed_sittings: number; pending_amount: number } | null;
   added_by_staff?: Pick<StaffMember, 'id' | 'name' | 'role'> | null;
   assigned_doctor_staff?: Pick<StaffMember, 'id' | 'name' | 'role'> | null;
+}
+
+export interface ReceptionTask {
+  entry: QueueEntry;
+  patient_name: string;
+  doctor_name: string | null;
+  outcome_label: string;
+  amount_due: number;
+  prescription_ready: boolean;
+  needs_appointment: boolean;
 }
 
 export interface ConsultContext {
