@@ -94,6 +94,86 @@ export interface StructuredNote {
   remainingSittings?: number | null;
   isMultiSitting?: boolean;
   treatmentPlanSuggested?: boolean;
+  assignedDoctor?: string | null;
+}
+
+// ─── V3 TYPES ───
+
+export interface Clinic {
+  id: string;
+  name: string;
+  city: string | null;
+  display_id: string;
+  join_code: string;
+  owner_staff_id: string | null;
+  created_at: string;
+}
+
+export type StaffRole = 'doctor' | 'receptionist';
+export type StaffStatus = 'pending' | 'active' | 'disabled';
+
+export interface StaffMember {
+  id: string;
+  clinic_id: string;
+  dentist_id: string | null;
+  phone: string;
+  name: string | null;
+  role: StaffRole;
+  status: StaffStatus;
+  created_at: string;
+}
+
+export type QueueStatus = 'waiting' | 'in_consultation' | 'completed' | 'skipped';
+export type ConsultationOutcome = 'diagnosis_only' | 'treatment_done' | 'treatment_postponed' | 'patient_declined' | 'referred' | 'follow_up_scheduled';
+
+export interface QueueEntry {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  treatment_plan_id: string | null;
+  added_by: string | null;
+  assigned_doctor: string | null;
+  status: QueueStatus;
+  consultation_outcome: ConsultationOutcome | null;
+  chief_complaint: string | null;
+  visit_reason: string | null;
+  priority: 'normal' | 'urgent';
+  queue_date: string;
+  token_number: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  patients?: Pick<Patient, 'id' | 'name' | 'phone' | 'age' | 'gender' | 'allergies'> & { clinical_flags?: any };
+  treatment_plans?: { id: string; procedure_name: string; total_sittings: number; completed_sittings: number; pending_amount: number } | null;
+  added_by_staff?: Pick<StaffMember, 'id' | 'name' | 'role'> | null;
+  assigned_doctor_staff?: Pick<StaffMember, 'id' | 'name' | 'role'> | null;
+}
+
+export interface ConsultContext {
+  queueEntry: QueueEntry;
+  patient: Patient;
+  activePlans: TreatmentPlan[];
+  lastVisit: Visit | null;
+  todayXrays: XRay[];
+  pendingBalance: number;
+}
+
+export type PaymentMethod = 'cash' | 'card' | 'upi' | 'other';
+
+export interface Payment {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  treatment_plan_id: string | null;
+  queue_entry_id: string | null;
+  received_by: string | null;
+  amount: number;
+  payment_method: PaymentMethod;
+  notes: string | null;
+  payment_date: string;
+  created_at: string;
+  received_by_staff?: Pick<StaffMember, 'name' | 'role'> | null;
+  treatment_plans?: { procedure_name: string } | null;
 }
 
 // ─── V4 TYPES ───
@@ -147,6 +227,7 @@ export interface PrescriptionMedicine {
   dose: string | null;
   frequency: string | null;
   duration: string | null;
+  timing: string | null;
   instructions: string | null;
 }
 
@@ -160,6 +241,7 @@ export interface Prescription {
   medicines: PrescriptionMedicine[];
   instructions: string | null;
   pdf_storage_path: string | null;
+  follow_up: string | null;
   created_at: string;
   patients?: { name: string; age: number | null; gender: string | null; phone: string };
   dentists?: { name: string | null; clinic_name: string | null; phone: string };

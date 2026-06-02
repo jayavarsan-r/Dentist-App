@@ -109,7 +109,8 @@ Extract structured information from a dentist's voice note and return ONLY valid
   "totalSittings": "number or null — total sittings required if dentist mentions it (e.g. '4 sittings required' means 4)",
   "remainingSittings": "number or null — remaining sittings after today",
   "isMultiSitting": "boolean — true if procedure requires multiple visits or dentist mentions sittings",
-  "treatmentPlanSuggested": "boolean — true if the note suggests creating a treatment plan"
+  "treatmentPlanSuggested": "boolean — true if the note suggests creating a treatment plan",
+  "assignedDoctor": "string or null — name of doctor assigned to this procedure if mentioned (e.g. 'This will be handled by Dr Priya' → 'Dr Priya', 'Refer to Dr Rajkumar' → 'Dr Rajkumar'). null if not mentioned."
 }
 If a follow-up is mentioned (e.g. 'follow up in 7 days', 'next appointment in 2 weeks'), calculate the exact date from today ${today}.
 For FDI tooth numbers: if the dentist says 'tooth 6' or 'upper right 6', map to FDI '16'. If 'lower left molar' or 'tooth 36', use '36'. Always output standard FDI two-digit numbers.
@@ -168,5 +169,6 @@ function mockNote(transcript) {
     remainingSittings: null,
     isMultiSitting: false,
     treatmentPlanSuggested: false,
+    assignedDoctor: null,
   };
 }

@@ -5,18 +5,19 @@ import {
   ArrowLeft, Mic, Calendar, Phone, AlertTriangle,
   FileText, Pill, ChevronRight, CheckCircle2, Clock, Sparkles,
   Map, Edit2, Activity, Heart, Droplet, Baby, Syringe, Check, X,
-  ClipboardList, Image as ImageIcon
+  ClipboardList, Image as ImageIcon, Users, CreditCard
 } from 'lucide-react';
-import { patientsApi, appointmentsApi, treatmentPlansApi, prescriptionsApi, xraysApi } from '@/lib/api';
+import { patientsApi, appointmentsApi, treatmentPlansApi, prescriptionsApi, xraysApi, queueApi, paymentsApi } from '@/lib/api';
+import { useAuthStore } from '@/store/authStore';
 import StatusBadge from '@/components/shared/StatusBadge';
 import EmptyState from '@/components/shared/EmptyState';
 import { ProfileShimmer } from '@/components/shared/LoadingShimmer';
 import ToothChart from '@/components/shared/ToothChart';
 import ToothDetailSheet from '@/components/shared/ToothDetailSheet';
 import { formatDate, formatTime12 } from '@/lib/utils';
-import type { Patient, Visit, Appointment, ToothHistoryResponse, ToothData, ClinicalFlags, TreatmentPlan, Prescription, XRay } from '@/types';
+import type { Patient, Visit, Appointment, ToothHistoryResponse, ToothData, ClinicalFlags, TreatmentPlan, Prescription, XRay, Payment, QueueEntry } from '@/types';
 
-const TABS = ['Overview', 'History', 'Health', 'Teeth', 'Plans', 'Rx', 'X-Rays'] as const;
+const TABS = ['Overview', 'History', 'Health', 'Teeth', 'Plans', 'Rx', 'X-Rays', 'Payments'] as const;
 type Tab = typeof TABS[number];
 
 const todayStr = () => new Date().toISOString().split('T')[0];
@@ -48,6 +49,7 @@ export default function PatientProfilePage() {
   const router = useRouter();
   const qc = useQueryClient();
   const { id } = router.query as { id: string };
+  const { role } = useAuthStore();
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [selectedTooth, setSelectedTooth] = useState<ToothData | null>(null);
 
@@ -80,6 +82,19 @@ export default function PatientProfilePage() {
     queryFn: () => xraysApi.listForPatient(id).then(r => r.data),
     enabled: !!id && activeTab === 'X-Rays',
   });
+
+  const { data: paymentsData } = useQuery<{ payments: Payment[] }>({
+    queryKey: ['payments', id],
+    queryFn: () => paymentsApi.forPatient(id).then(r => r.data),
+    enabled: !!id && activeTab === 'Payments',
+  });
+
+  const { data: queueData } = useQuery<{ queue: QueueEntry[] }>({
+    queryKey: ['queue'],
+    queryFn: () => queueApi.list().then(r => r.data),
+    enabled: !!id,
+  });
+  const patientQueueEntry = queueData?.queue?.find((q) => q.patient_id === id && (q.status === 'waiting' || q.status === 'in_consultation'));
 
   const activePlans = (plansData?.plans || []).filter(p => p.status === 'active');
 
@@ -218,8 +233,20 @@ export default function PatientProfilePage() {
 
           {/* Action chips */}
           <div className="flex gap-2 overflow-x-auto pb-1">
-            <ActionChip icon={<Mic className="w-5 h-5" />} label="Record Visit" highlight
-              onClick={() => router.push(`/voice/record/?patientId=${id}&patientName=${encodeURIComponent(patient.name)}`)} />
+            {role === 'receptionist' && !patientQueueEntry && (
+              <ActionChip icon={<Users className="w-5 h-5" />} label="Add to Queue" highlight
+                onClick={() => router.push(`/check-in?patientId=${id}&patientName=${encodeURIComponent(patient.name)}`)} />
+            )}
+            {role === 'doctor' && patientQueueEntry && (
+              <ActionChip icon={<Mic className="w-5 h-5" />} label="Start Consult" highlight
+                onClick={() => router.push(`/consult/${patientQueueEntry.id}`)} />
+            )}
+            {role !== 'receptionist' && (
+              <ActionChip icon={<Mic className="w-5 h-5" />} label="Record Visit" highlight={role !== 'doctor' || !patientQueueEntry}
+                onClick={() => router.push(`/voice/record/?patientId=${id}&patientName=${encodeURIComponent(patient.name)}`)} />
+            )}
+            <ActionChip icon={<CreditCard className="w-5 h-5" />} label="Payment"
+              onClick={() => router.push(`/payments/collect?patientId=${id}&patientName=${encodeURIComponent(patient.name)}`)} />
             <ActionChip icon={<Calendar className="w-5 h-5" />} label="Schedule"
               onClick={() => router.push(`/appointments/schedule/?patientId=${id}&patientName=${encodeURIComponent(patient.name)}`)} />
             <ActionChip icon={<ClipboardList className="w-5 h-5" />} label="Case Sheet"

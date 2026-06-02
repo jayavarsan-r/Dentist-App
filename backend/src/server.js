@@ -25,6 +25,10 @@ app.use('/api/visits/:visitId/notes', require('./routes/visit-notes.routes'));
 app.use('/api/prescriptions', require('./routes/prescriptions.routes'));
 app.use('/api/xrays', require('./routes/xrays.routes'));
 app.use('/api/dataset', require('./routes/dataset.routes'));
+app.use('/api/queue', require('./routes/queue.routes'));
+app.use('/api/staff', require('./routes/staff.routes'));
+app.use('/api/clinic', require('./routes/clinic.routes'));
+app.use('/api/payments', require('./routes/payments.routes'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 app.use(require('./middleware/errorHandler'));

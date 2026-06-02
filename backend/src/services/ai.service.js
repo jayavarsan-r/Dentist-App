@@ -6,33 +6,51 @@ async function extractPrescription(voiceText) {
 
   if (noKey) {
     return {
-      medicines: [{ name: 'Amoxicillin', dose: '500mg', frequency: '3 times daily', duration: '5 days', instructions: 'After food' }],
-      instructions: 'Test prescription — configure GEMINI_API_KEY',
-      followUp: null,
+      medicines: [
+        { name: 'Amoxicillin', dose: '500 mg', frequency: 'Three times daily', duration: '5 days', timing: 'After meals', instructions: 'Complete the full course. Do not stop early even if you feel better.' },
+        { name: 'Ibuprofen', dose: '400 mg', frequency: 'Twice daily', duration: '3 days', timing: 'After food', instructions: 'Take with food or milk. Avoid on empty stomach.' },
+      ],
+      instructions: 'Avoid hard and crunchy foods for 3 days. Rinse with warm salt water after meals. Do not smoke or consume alcohol while on these medications.',
+      followUp: 'Review after 5 days or earlier if pain increases.',
     };
   }
 
-  const prompt = `You are a dental prescription assistant. Extract prescription details from this dentist's voice note and return ONLY valid JSON.
+  const prompt = `You are an expert dental prescription assistant for an Indian dental clinic. A dentist has dictated a prescription by voice. Your job is to extract and format it into a clean, professional prescription.
 
-Schema:
+Return ONLY valid JSON with this exact schema — no markdown, no explanation, no code blocks:
+
 {
   "medicines": [
-    { "name": "string", "dose": "string", "frequency": "string", "duration": "string", "instructions": "string or null" }
+    {
+      "name": "Full medicine name, correctly spelled (e.g. Amoxicillin, Ibuprofen, Metronidazole, Diclofenac, Paracetamol, Pantoprazole)",
+      "dose": "Dose with units (e.g. 500 mg, 400 mg, 250 mg/5 ml)",
+      "frequency": "Human-readable frequency (e.g. Three times daily, Twice daily, Once at night, Every 8 hours)",
+      "duration": "Duration in days (e.g. 3 days, 5 days, 7 days)",
+      "timing": "EXACTLY one of: Before meals | After meals | With meals | At bedtime | On empty stomach | As needed",
+      "instructions": "One clear patient-friendly sentence about how to take this medicine. Include any warnings."
+    }
   ],
-  "instructions": "string or null — general patient instructions",
-  "followUp": "string or null"
+  "instructions": "2-3 sentences of post-treatment care instructions for the patient (diet, hygiene, activity restrictions). Use simple language.",
+  "followUp": "Follow-up instruction if mentioned, or null"
 }
 
-Return ONLY the JSON. No markdown. No explanation.
+Rules:
+- Spell all medicine names correctly and completely
+- "BD" or "twice" = "Twice daily", "TDS" or "thrice" or "three times" = "Three times daily", "OD" or "once" = "Once daily"
+- "After food" or "after meal" = "After meals"
+- "Before food" = "Before meals"
+- "At night" or "before sleep" = "At bedtime"
+- Extract every medicine mentioned, even if only partially described
+- Write instructions in simple English a patient can understand
 
-Voice note: ${voiceText}`;
+Dentist's voice note: ${voiceText}`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiKey}`;
 
   try {
     const response = await axios.post(url, {
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
+      generationConfig: { temperature: 0.15, maxOutputTokens: 1500 },
     }, {
       headers: { 'Content-Type': 'application/json' },
       timeout: 30000,
@@ -45,8 +63,8 @@ Voice note: ${voiceText}`;
   } catch (err) {
     console.error('[AI] Prescription extraction error:', err.message);
     return {
-      medicines: [{ name: 'Amoxicillin', dose: '500mg', frequency: '3 times daily', duration: '5 days', instructions: 'After food' }],
-      instructions: 'Extraction failed — please add medicines manually',
+      medicines: [{ name: 'Amoxicillin', dose: '500 mg', frequency: 'Three times daily', duration: '5 days', timing: 'After meals', instructions: 'Complete the full course.' }],
+      instructions: 'Extraction failed — please add medicines manually.',
       followUp: null,
     };
   }

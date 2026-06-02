@@ -126,3 +126,41 @@ export const datasetApi = {
   export: (params?: { format?: string; includeUrls?: string; limit?: number }) =>
     api.get('/dataset/export', { params }),
 };
+
+// V3 Auth extensions
+export const clinicAuthApi = {
+  createClinic: (data: { clinicName: string; yourName: string; city?: string; phone?: string }) =>
+    api.post('/auth/create-clinic', data),
+  lookupClinic: (joinCode: string) =>
+    api.post('/auth/lookup-clinic', { joinCode }),
+  joinClinic: (data: { joinCode: string; yourName: string; role: 'doctor' | 'receptionist' }) =>
+    api.post('/auth/join-clinic', data),
+};
+
+// Queue
+export const queueApi = {
+  list: () => api.get('/queue'),
+  add: (data: object) => api.post('/queue', data),
+  update: (id: string, data: object) => api.patch(`/queue/${id}`, data),
+  remove: (id: string) => api.delete(`/queue/${id}`),
+  context: (id: string) => api.get(`/queue/${id}/context`),
+};
+
+// Staff
+export const staffApi = {
+  list: () => api.get('/staff'),
+  me: () => api.get('/staff/me'),
+};
+
+// Clinic
+export const clinicApi = {
+  get: () => api.get('/clinic'),
+  update: (data: object) => api.patch('/clinic', data),
+};
+
+// Payments
+export const paymentsApi = {
+  create: (data: object) => api.post('/payments', data),
+  forPatient: (patientId: string) => api.get(`/payments/patient/${patientId}`),
+  forPlan: (planId: string) => api.get(`/payments/plan/${planId}`),
+};

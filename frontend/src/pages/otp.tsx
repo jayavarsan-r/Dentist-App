@@ -4,7 +4,7 @@ import { ArrowLeft, MessageSquare } from 'lucide-react';
 import AppButton from '@/components/shared/AppButton';
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
-import type { Dentist } from '@/types';
+import type { Dentist, StaffMember, Clinic } from '@/types';
 
 export default function OtpPage() {
   const router = useRouter();
@@ -47,9 +47,16 @@ export default function OtpPage() {
     setError('');
     try {
       const res = await authApi.verifyOtp(pendingPhone, code);
-      const { token, dentist } = res.data;
-      setAuth(token, dentist as Dentist);
-      router.replace('/home/');
+      const { token, dentist, staff, clinic, isNewUser, needsClinic } = res.data;
+      setAuth(token, dentist as Dentist, staff || null, clinic || null);
+
+      if (isNewUser || needsClinic) {
+        router.replace('/onboarding/');
+      } else if (staff?.role === 'receptionist') {
+        router.replace('/reception/');
+      } else {
+        router.replace('/home/');
+      }
     } catch (e: any) {
       setError(e.message || 'Invalid OTP');
       setOtp(['', '', '', '', '', '']);

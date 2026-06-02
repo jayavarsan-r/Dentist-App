@@ -4,70 +4,85 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // ── BACKGROUNDS ──
-        bg: '#FFFFFF',
+        // System background (iOS gray)
+        bg: '#F2F2F7',
         surface: '#FFFFFF',
-        'surface-subtle': '#FAFAF8',
-        'surface-muted': '#F4F3F0',
+        'surface-subtle': '#F9F9F9',
+        'surface-muted': '#F2F2F7',
 
-        // ── ACCENT — Sage Green (primary brand) ──
+        // Accent — near black (DentWay)
         accent: {
-          DEFAULT: '#5F7A61',
-          dark: '#49614B',
-          light: '#EDF4EE',
-          subtle: '#F4F8F4',
+          DEFAULT: '#1C1C1E',
+          dark: '#000000',
+          light: '#E8E8EA',
+          subtle: '#F5F5F5',
         },
 
-        // ── HIGHLIGHT — Amber (pending / upcoming / attention) ──
-        amber: {
-          DEFAULT: '#D97706',
-          dark: '#B45309',
-          light: '#FEF3C7',
-          border: '#FDE68A',
-        },
+        // Action blue (links, navigation)
+        blue: { DEFAULT: '#007AFF', light: '#E5F2FF' },
 
-        // ── SEMANTIC ──
-        success: { DEFAULT: '#16A34A', light: '#DCFCE7', border: '#86EFAC' },
-        warning: { DEFAULT: '#CA8A04', light: '#FEF9C3', border: '#FDE047' },
-        error: { DEFAULT: '#DC2626', light: '#FEE2E2', border: '#FCA5A5' },
-        info: { DEFAULT: '#0891B2', light: '#E0F2FE', border: '#67E8F9' },
+        // Semantic
+        success: { DEFAULT: '#34C759', light: '#DCFCE7', border: '#86EFAC' },
+        warning: { DEFAULT: '#FF9F0A', light: '#FFF3CD', border: '#FFD60A' },
+        error: { DEFAULT: '#FF3B30', light: '#FFF1F0', border: '#FF6B60' },
+        info: { DEFAULT: '#32ADE6', light: '#E0F4FF', border: '#67E8F9' },
 
-        // ── TEXT ──
+        // Text
         text: {
-          primary: '#1C1917',
-          secondary: '#78716C',
-          disabled: '#A8A29E',
+          primary: '#1C1C1E',
+          secondary: '#6E6E73',
+          disabled: '#AEAEB2',
           inverse: '#FFFFFF',
-          link: '#5F7A61',
+          link: '#007AFF',
         },
 
-        // ── BORDERS ──
-        border: '#E7E5E4',
-        divider: '#F5F5F4',
+        // Borders
+        border: '#D1D1D6',
+        divider: '#E5E5EA',
 
-        // ── BACKWARD-COMPAT ALIASES ──
-        // Legacy tokens used by zero-touch pages (login, settings, voice, etc.).
-        // Remapped onto the warm palette so those screens re-theme automatically
-        // without being modified, per the spec's "no zero-touch file changes" rule.
+        // Legacy backward-compat aliases (so existing pages don't break)
         primary: {
-          DEFAULT: '#5F7A61',
-          dark: '#49614B',
-          light: '#7A957C',
-          surface: '#EDF4EE',
-          subtle: '#F4F8F4',
+          DEFAULT: '#1C1C1E',
+          dark: '#000000',
+          light: '#636366',
+          surface: '#E8E8EA',
+          subtle: '#F5F5F5',
+        },
+        amber: {
+          DEFAULT: '#FF9F0A',
+          dark: '#CC7A00',
+          light: '#FFF3CD',
+          border: '#FFD60A',
         },
         app: {
-          bg: '#FFFFFF',
+          bg: '#F2F2F7',
           surface: '#FFFFFF',
-          'surface-variant': '#FAFAF8',
-          border: '#E7E5E4',
-          divider: '#F5F5F4',
+          'surface-variant': '#F9F9F9',
+          border: '#D1D1D6',
+          divider: '#E5E5EA',
           'dark-bg': '#0A0E1A',
         },
-        recording: '#EF4444',
+        recording: '#FF3B30',
+        'info-light': '#E0F4FF',
+        'info-border': '#67E8F9',
+        'warning-light': '#FFF3CD',
+        'warning-border': '#FFD60A',
+        'error-light': '#FFF1F0',
+        'error-border': '#FF6B60',
+        'success-light': '#DCFCE7',
+        'success-border': '#86EFAC',
+        'amber-light': '#FFF3CD',
+        'amber-border': '#FFD60A',
+        'amber-dark': '#CC7A00',
+        'accent-light': '#E8E8EA',
+        'accent-subtle': '#F5F5F5',
+        'primary-surface': '#E8E8EA',
+        'primary-light': '#636366',
+        'blue-light': '#E5F2FF',
       },
       fontFamily: {
-        inter: ['Inter', 'sans-serif'],
+        sans: ['Plus Jakarta Sans', 'Inter', '-apple-system', 'system-ui', 'sans-serif'],
+        inter: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
       },
       borderRadius: {
         'xs': '6px',
@@ -78,20 +93,13 @@ module.exports = {
         '2xl': '28px',
         'full': '9999px',
       },
-      spacing: {
-        'xs': '4px',
-        'sm': '8px',
-        'md': '16px',
-        'lg': '24px',
-        'xl': '32px',
-        '2xl': '48px',
-      },
       boxShadow: {
-        'card': '0 2px 8px rgba(0,0,0,0.04)',
-        'elevated': '0 4px 20px rgba(0,0,0,0.07)',
-        'primary': '0 6px 16px rgba(95,122,97,0.25)',
-        'primary-sm': '0 3px 8px rgba(95,122,97,0.19)',
-        'nav': '0 -2px 16px rgba(0,0,0,0.08)',
+        'card': '0 1px 3px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.05)',
+        'elevated': '0 4px 12px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.06)',
+        'nav': '0 -1px 0 rgba(0,0,0,0.10)',
+        'primary': '0 4px 12px rgba(0,0,0,0.20)',
+        'primary-sm': '0 2px 6px rgba(0,0,0,0.15)',
+        'sheet': '0 -4px 24px rgba(0,0,0,0.12)',
       },
     },
   },

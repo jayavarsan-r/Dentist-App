@@ -33,7 +33,7 @@ export default function NewPrescriptionPage() {
   const [error, setError] = useState('');
   const [extracting, setExtracting] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newMed, setNewMed] = useState<PrescriptionMedicine>({ name: '', dose: null, frequency: null, duration: null, instructions: null });
+  const [newMed, setNewMed] = useState<PrescriptionMedicine>({ name: '', dose: null, frequency: null, duration: null, timing: null, instructions: null });
   const [seconds, setSeconds] = useState(0);
   const [waveHeights, setWaveHeights] = useState<number[]>(Array(20).fill(6));
 
@@ -195,13 +195,16 @@ export default function NewPrescriptionPage() {
             <p className="text-sm text-text-disabled italic mb-3">No medicines added yet</p>
           )}
           {medicines.map((med, i) => (
-            <div key={i} className="bg-surface border border-border rounded-xl px-4 py-3 mb-2.5 flex items-start gap-3">
+            <div key={i} className="bg-surface border border-border rounded-xl px-4 py-3 mb-2.5 flex items-start gap-3" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <div className="flex-1">
-                <p className="text-sm font-semibold text-text-primary">{med.name}</p>
-                <p className="text-xs text-text-secondary">{[med.dose, med.frequency, med.duration].filter(Boolean).join(' · ')}</p>
-                {med.instructions && <p className="text-xs text-text-disabled mt-0.5">{med.instructions}</p>}
+                <p className="text-[15px] font-semibold text-text-primary">{med.name} {med.dose && <span className="font-normal text-text-secondary">{med.dose}</span>}</p>
+                <p className="text-[13px] text-text-secondary mt-0.5">{[med.frequency, med.duration && `for ${med.duration}`].filter(Boolean).join(' · ')}</p>
+                {med.timing && (
+                  <span className="inline-block mt-1 text-[11px] font-semibold px-2 py-0.5 rounded-[5px]" style={{ background: 'rgba(50,173,230,0.12)', color: '#1B86B8' }}>{med.timing}</span>
+                )}
+                {med.instructions && <p className="text-[12px] text-text-disabled mt-1">{med.instructions}</p>}
               </div>
-              <button onClick={() => setMedicines(m => m.filter((_, j) => j !== i))} className="text-error p-1">
+              <button onClick={() => setMedicines(m => m.filter((_, j) => j !== i))} className="text-error p-1 mt-0.5">
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
@@ -209,26 +212,26 @@ export default function NewPrescriptionPage() {
 
           {showAddForm && (
             <div className="bg-surface-subtle border border-border rounded-xl p-4 mb-3 space-y-3">
-              {(['name', 'dose', 'frequency', 'duration', 'instructions'] as const).map(field => (
+              {(['name', 'dose', 'frequency', 'duration', 'timing', 'instructions'] as const).map(field => (
                 <div key={field}>
                   <label className="text-[10px] font-semibold text-text-secondary uppercase">{field}</label>
                   <input
                     type="text" value={newMed[field] || ''}
                     onChange={e => setNewMed(m => ({ ...m, [field]: e.target.value || null }))}
-                    placeholder={field === 'name' ? 'e.g. Amoxicillin' : field === 'dose' ? '500mg' : field === 'frequency' ? '3 times daily' : field === 'duration' ? '5 days' : 'After food'}
+                    placeholder={field === 'name' ? 'e.g. Amoxicillin' : field === 'dose' ? '500 mg' : field === 'frequency' ? 'Three times daily' : field === 'duration' ? '5 days' : field === 'timing' ? 'After meals' : 'Take with water'}
                     className="w-full h-9 bg-surface border border-border rounded-lg px-3 text-sm text-text-primary focus:outline-none focus:border-accent mt-1"
                   />
                 </div>
               ))}
               <div className="flex gap-2">
-                <AppButton variant="secondary" size="sm" onClick={() => { setShowAddForm(false); setNewMed({ name: '', dose: null, frequency: null, duration: null, instructions: null }); }} fullWidth={false}>
+                <AppButton variant="secondary" size="sm" onClick={() => { setShowAddForm(false); setNewMed({ name: '', dose: null, frequency: null, duration: null, timing: null, instructions: null }); }} fullWidth={false}>
                   Cancel
                 </AppButton>
                 <AppButton size="sm" onClick={() => {
                   if (!newMed.name.trim()) return;
                   setMedicines(m => [...m, newMed]);
                   setShowAddForm(false);
-                  setNewMed({ name: '', dose: null, frequency: null, duration: null, instructions: null });
+                  setNewMed({ name: '', dose: null, frequency: null, duration: null, timing: null, instructions: null });
                 }} fullWidth={false}>
                   Add
                 </AppButton>

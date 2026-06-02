@@ -10,11 +10,13 @@ router.post('/', auth, async (req, res, next) => {
 
     let extractedMedicines = medicines;
     let extractedInstructions = instructions;
+    let extractedFollowUp = null;
 
     if (rawVoice && (!medicines || medicines.length === 0)) {
       const extracted = await extractPrescription(rawVoice);
       extractedMedicines = extracted.medicines;
       extractedInstructions = extracted.instructions;
+      extractedFollowUp = extracted.followUp || null;
     }
 
     const { data, error } = await supabase.from('prescriptions').insert({
@@ -28,7 +30,7 @@ router.post('/', auth, async (req, res, next) => {
     }).select(`*, patients(name, age, gender, phone)`).single();
 
     if (error) throw error;
-    res.status(201).json({ prescription: data });
+    res.status(201).json({ prescription: { ...data, follow_up: extractedFollowUp } });
   } catch (err) { next(err); }
 });
 
